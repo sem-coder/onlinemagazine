@@ -12,6 +12,9 @@ export async function GET(
   if (!magazine) {
     return NextResponse.json({ error: "Magazine niet gevonden." }, { status: 404 });
   }
+  if (magazine.pdfUrl) {
+    return NextResponse.redirect(magazine.pdfUrl, 307);
+  }
 
   const pdf = await readPdf(id);
   return new NextResponse(new Uint8Array(pdf), {

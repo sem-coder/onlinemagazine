@@ -40,7 +40,7 @@ export function MagazineViewer({
     let urls: string[] = [];
     async function load() {
       try {
-        const response = await fetch(`/api/magazines/${magazine.id}/pdf`);
+        const response = await fetch(magazine.pdfUrl || `/api/magazines/${magazine.id}/pdf`);
         if (!response.ok) throw new Error("PDF kon niet worden geladen.");
         const rendered = await renderPdf(await response.arrayBuffer(), (value) => {
           if (!cancelled) setProgress(value);

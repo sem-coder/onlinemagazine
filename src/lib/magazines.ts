@@ -1,20 +1,21 @@
-import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { MAGAZINE_ID_PATTERN, type Magazine } from "@/lib/types";
+import { blobEnabled, deletePrefix, getObject, listObjectUrls, putObject } from "@/lib/store";
 
-const ROOT = path.join(process.cwd(), "data", "magazines");
-
-function magazineDir(id: string) {
+function magazinePrefix(id: string) {
   if (!MAGAZINE_ID_PATTERN.test(id)) throw new Error("Ongeldig magazine-id");
-  return path.join(ROOT, id);
+  return `magazines/${id}`;
 }
 
-export function pdfPath(id: string) {
-  return path.join(magazineDir(id), "magazine.pdf");
+function metaPath(id: string) {
+  return `${magazinePrefix(id)}/meta.json`;
 }
 
-export function coverPath(id: string) {
-  return path.join(magazineDir(id), "cover.jpg");
+function pdfObjectPath(id: string) {
+  return `${magazinePrefix(id)}/magazine.pdf`;
+}
+
+function coverObjectPath(id: string) {
+  return `${magazinePrefix(id)}/cover.jpg`;
 }
 
 export function slugify(input: string) {
@@ -28,47 +29,56 @@ export function slugify(input: string) {
   return slug || "magazine";
 }
 
+function normalizeMagazine(raw: Partial<Magazine> & { id: string }): Magazine {
+  return {
+    id: raw.id,
+    slug: raw.slug || raw.id,
+    title: raw.title || "Magazine",
+    originalName: raw.originalName || "magazine.pdf",
+    pageCount: raw.pageCount || 1,
+    pageWidth: raw.pageWidth || 595,
+    pageHeight: raw.pageHeight || 842,
+    createdAt: raw.createdAt || new Date().toISOString(),
+    ownerId: raw.ownerId || "guest",
+    views: raw.views ?? 0,
+    public: raw.public ?? true,
+    leadForm: raw.leadForm ?? false,
+    expiresAt: raw.expiresAt ?? null,
+    pdfUrl: raw.pdfUrl ?? null,
+    coverUrl: raw.coverUrl ?? null,
+  };
+}
+
 export async function saveMagazine(input: {
   id: string;
   magazine: Magazine;
-  pdf: Buffer;
-  cover: Buffer;
+  pdf?: Buffer;
+  cover?: Buffer;
 }) {
-  const dir = magazineDir(input.id);
-  await mkdir(dir, { recursive: true });
-  await Promise.all([
-    writeFile(pdfPath(input.id), input.pdf),
-    writeFile(coverPath(input.id), input.cover),
-    writeFile(path.join(dir, "meta.json"), JSON.stringify(input.magazine, null, 2)),
-  ]);
+  if (input.pdf) {
+    const url = await putObject(pdfObjectPath(input.id), input.pdf, "application/pdf");
+    if (blobEnabled()) input.magazine.pdfUrl = url;
+  }
+  if (input.cover) {
+    const url = await putObject(coverObjectPath(input.id), input.cover, "image/jpeg");
+    if (blobEnabled()) input.magazine.coverUrl = url;
+  }
+  if (blobEnabled() && !input.magazine.pdfUrl) {
+    throw new Error("PDF-url ontbreekt.");
+  }
+  await writeMeta(input.magazine);
 }
 
 export async function writeMeta(magazine: Magazine) {
-  await writeFile(
-    path.join(magazineDir(magazine.id), "meta.json"),
-    JSON.stringify(magazine, null, 2),
-  );
+  await putObject(metaPath(magazine.id), JSON.stringify(magazine, null, 2), "application/json");
 }
 
 export async function getMagazine(id: string): Promise<Magazine | null> {
   try {
-    const raw = await readFile(path.join(magazineDir(id), "meta.json"), "utf8");
-    const magazine = JSON.parse(raw) as Partial<Magazine> & { id: string };
-    return {
-      id: magazine.id,
-      slug: magazine.slug || magazine.id,
-      title: magazine.title || "Magazine",
-      originalName: magazine.originalName || "magazine.pdf",
-      pageCount: magazine.pageCount || 1,
-      pageWidth: magazine.pageWidth || 595,
-      pageHeight: magazine.pageHeight || 842,
-      createdAt: magazine.createdAt || new Date().toISOString(),
-      ownerId: magazine.ownerId || "guest",
-      views: magazine.views ?? 0,
-      public: magazine.public ?? true,
-      leadForm: magazine.leadForm ?? false,
-      expiresAt: magazine.expiresAt ?? null,
-    };
+    if (!MAGAZINE_ID_PATTERN.test(id)) return null;
+    const raw = await getObject(metaPath(id));
+    if (!raw) return null;
+    return normalizeMagazine(JSON.parse(raw.toString("utf8")) as Partial<Magazine> & { id: string });
   } catch {
     return null;
   }
@@ -82,17 +92,26 @@ export async function getMagazineBySlugOrId(idOrSlug: string) {
 }
 
 export async function listMagazines(): Promise<Magazine[]> {
-  try {
-    const entries = await readdir(ROOT, { withFileTypes: true });
-    const magazines = await Promise.all(
-      entries.filter((entry) => entry.isDirectory()).map((entry) => getMagazine(entry.name)),
-    );
-    return magazines
-      .filter((magazine): magazine is Magazine => magazine !== null)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  } catch {
-    return [];
-  }
+  const objects = await listObjectUrls("magazines/");
+  const metaFiles = objects.filter((item) => item.pathname.endsWith("/meta.json"));
+  const magazines = await Promise.all(
+    metaFiles.map(async (item) => {
+      if (item.url) {
+        try {
+          const response = await fetch(item.url, { cache: "no-store" });
+          if (!response.ok) return null;
+          return normalizeMagazine((await response.json()) as Partial<Magazine> & { id: string });
+        } catch {
+          return null;
+        }
+      }
+      const id = item.pathname.split("/")[1];
+      return id ? getMagazine(id) : null;
+    }),
+  );
+  return magazines
+    .filter((magazine): magazine is Magazine => magazine !== null)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 export async function listMagazinesForOwner(ownerId: string) {
@@ -124,24 +143,38 @@ export async function bumpViews(id: string) {
 export async function deleteMagazine(id: string, ownerId: string) {
   const magazine = await getMagazine(id);
   if (!magazine || magazine.ownerId !== ownerId) return false;
-  await rm(magazineDir(id), { recursive: true, force: true });
+  await deletePrefix(magazinePrefix(id));
   return true;
 }
 
 export async function readPdf(id: string) {
-  return readFile(pdfPath(id));
+  const magazine = await getMagazine(id);
+  if (magazine?.pdfUrl) {
+    const response = await fetch(magazine.pdfUrl);
+    if (!response.ok) throw new Error("PDF niet gevonden");
+    return Buffer.from(await response.arrayBuffer());
+  }
+  const pdf = await getObject(pdfObjectPath(id));
+  if (!pdf) throw new Error("PDF niet gevonden");
+  return pdf;
 }
 
 export async function readCover(id: string) {
-  return readFile(coverPath(id));
+  const magazine = await getMagazine(id);
+  if (magazine?.coverUrl) {
+    const response = await fetch(magazine.coverUrl);
+    if (!response.ok) throw new Error("Cover niet gevonden");
+    return Buffer.from(await response.arrayBuffer());
+  }
+  const cover = await getObject(coverObjectPath(id));
+  if (!cover) throw new Error("Cover niet gevonden");
+  return cover;
 }
 
 export async function claimGuestMagazines(guestId: string, userId: string) {
   const magazines = await listMagazinesForOwner(guestId);
   await Promise.all(
-    magazines.map((magazine) =>
-      writeMeta({ ...magazine, ownerId: userId, expiresAt: null }),
-    ),
+    magazines.map((magazine) => writeMeta({ ...magazine, ownerId: userId, expiresAt: null })),
   );
   return magazines.length;
 }

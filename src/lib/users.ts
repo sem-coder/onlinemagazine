@@ -1,20 +1,18 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { getObject, putObject } from "@/lib/store";
 import type { User } from "@/lib/types";
 
-const FILE = path.join(process.cwd(), "data", "users.json");
-
 async function readAll(): Promise<User[]> {
+  const raw = await getObject("users.json");
+  if (!raw) return [];
   try {
-    return JSON.parse(await readFile(FILE, "utf8")) as User[];
+    return JSON.parse(raw.toString("utf8")) as User[];
   } catch {
     return [];
   }
 }
 
 async function writeAll(users: User[]) {
-  await mkdir(path.dirname(FILE), { recursive: true });
-  await writeFile(FILE, JSON.stringify(users, null, 2));
+  await putObject("users.json", JSON.stringify(users, null, 2), "application/json");
 }
 
 export async function findUserById(id: string) {

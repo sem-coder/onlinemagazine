@@ -14,6 +14,8 @@ export type Magazine = {
   public: boolean;
   leadForm: boolean;
   expiresAt: string | null;
+  pdfUrl?: string | null;
+  coverUrl?: string | null;
 };
 
 export type User = {
