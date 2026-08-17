@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "postinstall": "node scripts/copy-pdfjs-assets.mjs",
     "start": "next start",
     "lint": "eslint"
   },

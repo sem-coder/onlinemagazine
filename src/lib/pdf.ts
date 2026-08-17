@@ -76,7 +76,14 @@ async function renderPage(page: PDFPageProxy, maxEdge: number, quality: number) 
 async function openPdf(file: File | ArrayBuffer) {
   const pdfjs = await loadPdfjs();
   const data = file instanceof File ? await file.arrayBuffer() : file;
-  return pdfjs.getDocument({ data }).promise;
+  return pdfjs.getDocument({
+    data,
+    wasmUrl: "/pdfjs/wasm/",
+    iccUrl: "/pdfjs/iccs/",
+    cMapUrl: "/pdfjs/cmaps/",
+    cMapPacked: true,
+    standardFontDataUrl: "/pdfjs/standard_fonts/",
+  }).promise;
 }
 
 export async function inspectPdf(file: File) {
