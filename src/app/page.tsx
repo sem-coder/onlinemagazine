@@ -1,71 +1,104 @@
-import { UploadDropzone } from "@/components/UploadDropzone.client";
-import { listMagazines } from "@/lib/magazines";
 import Link from "next/link";
+import { SiteFooter, SiteHeader } from "@/components/SiteChrome";
+import { UploadDropzone } from "@/components/UploadDropzone.client";
+import { PricingTable } from "@/components/PricingTable";
+import { EXAMPLES } from "@/lib/examples";
+import { getSessionUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const magazines = await listMagazines();
+  const user = await getSessionUser();
 
   return (
-    <div className="flex min-h-dvh flex-col bg-paper text-ink">
-      <header className="flex items-center justify-between px-6 py-5 md:px-10">
-        <Link href="/" className="flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-sm font-semibold text-white">
-            F
-          </span>
-          <span className="font-display text-xl tracking-tight">Folio</span>
-        </Link>
-        <p className="hidden text-sm text-ink/55 sm:block">PDF in. Magazine out.</p>
-      </header>
-
-      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-6 pb-20 pt-8 md:px-10">
-        <section className="grid items-center gap-10 lg:grid-cols-[1.1fr_0.9fr]">
+    <div className="bg-paper">
+      <SiteHeader user={user} />
+      <main>
+        <section id="convert" className="mx-auto grid max-w-6xl items-center gap-12 px-5 py-16 lg:grid-cols-2">
           <div>
-            <p className="text-sm uppercase tracking-[0.22em] text-accent">Online magazine</p>
-            <h1 className="mt-3 font-display text-5xl leading-[1.05] tracking-tight md:text-6xl">
-              Blader door je PDF alsof het gedrukt is.
-            </h1>
-            <p className="mt-5 max-w-md text-base leading-7 text-ink/70">
-              Upload een catalogus, brochure of magazine. Folio zet het om naar een
-              bladzijde-voor-bladzijde ervaring — met omslag, schaduw en een echte page-flip.
+            <h1 className="text-5xl font-semibold tracking-tight md:text-6xl">Flipbook maker</h1>
+            <p className="mt-5 max-w-xl text-lg leading-8 text-ink/70">
+              PDF naar flipbook, gratis, zonder ads. Kies page-flip, deel een unieke link of embed het magazine op je website.
+            </p>
+            <div className="mt-8">
+              <UploadDropzone />
+            </div>
+            <p className="mt-3 text-sm text-ink/50">
+              Zonder account blijft je flipbook 7 dagen online.{" "}
+              <Link href="/signup" className="text-green">
+                Maak een account
+              </Link>{" "}
+              om hem te houden.
             </p>
           </div>
-          <UploadDropzone />
+          <div className="flex justify-center">
+            <div className="hero-book">
+              <p className="text-sm uppercase tracking-[0.25em] text-white/70">Preview</p>
+              <p className="mt-2 text-4xl font-semibold">Folio</p>
+              <p className="mt-2 text-white/80">Blader alsof het gedrukt is</p>
+            </div>
+          </div>
         </section>
 
-        {magazines.length > 0 ? (
-          <section className="mt-20">
-            <div className="mb-6 flex items-end justify-between">
-              <h2 className="font-display text-3xl tracking-tight">Jouw magazines</h2>
-              <p className="text-sm text-ink/50">{magazines.length} online</p>
+        <section className="bg-white py-16">
+          <div className="mx-auto grid max-w-6xl gap-6 px-5 md:grid-cols-4">
+            {[
+              ["Flipbook maker", "PDF van elk formaat, met realistische page-flip."],
+              ["Gratis starten", "Geen ads over je publicatie. Link, share of embed."],
+              ["Interactief", "Leadformulieren en eigen branding op betaalde plannen."],
+              ["Delen", "Unieke URL, iframe-embed en QR-klare link."],
+            ].map(([title, text]) => (
+              <article key={title} className="rounded-2xl border border-black/8 p-5">
+                <h2 className="font-semibold">{title}</h2>
+                <p className="mt-2 text-sm leading-6 text-ink/65">{text}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="mx-auto max-w-6xl px-5 py-16">
+          <div className="mb-8 flex items-end justify-between">
+            <h2 className="text-3xl font-semibold">Voorbeelden</h2>
+            <Link href="/voorbeelden" className="text-sm text-green">
+              Meer voorbeelden
+            </Link>
+          </div>
+          <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {EXAMPLES.map((example) => (
+              <li key={example.slug}>
+                <Link href={`/voorbeelden/${example.slug}`} className="group block overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5">
+                  <div className="aspect-[3/4] overflow-hidden">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={`/examples/${example.slug}/page-1.svg`}
+                      alt={example.title}
+                      className="h-full w-full object-cover transition group-hover:scale-[1.03]"
+                    />
+                  </div>
+                  <div className="p-3">
+                    <p className="text-xs uppercase tracking-wide text-green">{example.category}</p>
+                    <p className="font-medium">{example.title}</p>
+                    <p className="text-sm text-ink/55">{example.pages} pagina’s · Bekijk</p>
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section className="bg-white py-16">
+          <div className="mx-auto max-w-6xl px-5">
+            <h2 className="text-center text-3xl font-semibold">Prijzen</h2>
+            <p className="mx-auto mt-3 max-w-2xl text-center text-ink/60">
+              Verdien aan je catalogs: upgrade voor branding-af, leads en statistieken. Prijzen incl. waar van toepassing.
+            </p>
+            <div className="mt-10">
+              <PricingTable />
             </div>
-            <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {magazines.map((magazine) => (
-                <li key={magazine.id}>
-                  <Link
-                    href={`/m/${magazine.id}`}
-                    className="group block overflow-hidden rounded-2xl bg-white shadow-[0_12px_30px_rgba(28,25,21,0.08)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_40px_rgba(28,25,21,0.12)]"
-                  >
-                    <div className="aspect-[3/4] overflow-hidden bg-ink/5">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={`/api/magazines/${magazine.id}/cover`}
-                        alt={magazine.title}
-                        className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
-                      />
-                    </div>
-                    <div className="px-4 py-3">
-                      <p className="truncate font-medium">{magazine.title}</p>
-                      <p className="text-sm text-ink/50">{magazine.pageCount} pagina’s</p>
-                    </div>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
+          </div>
+        </section>
       </main>
+      <SiteFooter />
     </div>
   );
 }

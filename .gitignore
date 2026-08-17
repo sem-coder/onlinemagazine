@@ -39,6 +39,7 @@ yarn-error.log*
 # uploaded magazines
 /data/magazines/*
 !/data/magazines/.gitkeep
+/data/users.json
 
 # typescript
 *.tsbuildinfo

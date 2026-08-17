@@ -1,23 +1,8 @@
-import type { Metadata } from "next";
-import { notFound } from "next/navigation";
-import { MagazineViewerClient } from "@/components/MagazineViewer.client";
-import { getMagazine } from "@/lib/magazines";
+import { redirect } from "next/navigation";
 
-type MagazineParams = { params: Promise<{ id: string }> };
+type Params = { params: Promise<{ id: string }> };
 
-export async function generateMetadata({
-  params,
-}: MagazineParams): Promise<Metadata> {
+export default async function LegacyMagazineRedirect({ params }: Params) {
   const { id } = await params;
-  const magazine = await getMagazine(id);
-  return {
-    title: magazine ? `${magazine.title} — Folio` : "Magazine — Folio",
-  };
-}
-
-export default async function MagazinePage({ params }: MagazineParams) {
-  const { id } = await params;
-  const magazine = await getMagazine(id);
-  if (!magazine) notFound();
-  return <MagazineViewerClient magazine={magazine} />;
+  redirect(`/v/${id}`);
 }

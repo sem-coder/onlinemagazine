@@ -1,0 +1,10 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='620' height='860' viewBox='0 0 620 860'>
+  <rect width='620' height='860' fill='#f7f3ea'/>
+  <text x='48' y='64' fill='#6b6458' font-size='12' font-family='Helvetica, Arial, sans-serif' letter-spacing='3'>MENU</text>
+  <text x='48' y='430' fill='#1a1f1c' font-size='22' font-family='Georgia, serif'>Starters</text>
+    <text x='48' y='470' fill='#6b6458' font-size='14' font-family='Helvetica, Arial, sans-serif'>Spread 2 van 4. Blader alsof het gedrukt is.</text>
+    <rect x='48' y='510' width='320' height='8' rx='4' fill='#6b4f2a'/>
+    <rect x='48' y='530' width='260' height='8' rx='4' fill='#6b4f2a'/>
+    <rect x='48' y='550' width='290' height='8' rx='4' fill='#6b4f2a'/>
+  <text x='48' y='820' fill='#6b6458' font-size='12' font-family='Helvetica, Arial, sans-serif'>2 / 4</text>
+</svg>

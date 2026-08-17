@@ -15,7 +15,7 @@ function titleFromFile(name: string) {
   return name.replace(/\.pdf$/i, "").replace(/[-_]+/g, " ");
 }
 
-export function UploadDropzone() {
+export function UploadDropzone({ compact = false }: { compact?: boolean }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -31,12 +31,9 @@ export function UploadDropzone() {
         setStatus({ kind: "error", message: "PDF is groter dan 40 MB." });
         return;
       }
-
       try {
         setStatus({ kind: "converting", current: 0, total: 1 });
         const inspected = await inspectPdf(file);
-        setStatus({ kind: "converting", current: inspected.pageCount, total: inspected.pageCount });
-
         setStatus({ kind: "uploading" });
         const form = new FormData();
         form.set("pdf", file);
@@ -46,15 +43,13 @@ export function UploadDropzone() {
         form.set("pageCount", String(inspected.pageCount));
         form.set("pageWidth", String(Math.round(inspected.pageWidth)));
         form.set("pageHeight", String(Math.round(inspected.pageHeight)));
-
         const response = await fetch("/api/magazines", { method: "POST", body: form });
-        const data = (await response.json()) as { magazine?: { id: string }; error?: string };
-
-        if (!response.ok || !data.magazine) {
-          throw new Error(data.error ?? "Upload mislukt");
-        }
-
-        router.push(`/m/${data.magazine.id}`);
+        const data = (await response.json()) as {
+          magazine?: { id: string; slug: string };
+          error?: string;
+        };
+        if (!response.ok || !data.magazine) throw new Error(data.error ?? "Upload mislukt");
+        router.push(`/v/${data.magazine.slug}?share=1`);
         router.refresh();
       } catch (error) {
         setStatus({
@@ -85,11 +80,11 @@ export function UploadDropzone() {
           const file = event.dataTransfer.files[0];
           if (file) void handleFile(file);
         }}
-        className={`group relative flex min-h-56 w-full flex-col items-center justify-center rounded-3xl border-2 border-dashed px-6 py-10 text-center transition ${
-          dragOver
-            ? "border-ink bg-white shadow-[0_20px_50px_rgba(28,25,21,0.12)]"
-            : "border-ink/20 bg-white/70 hover:border-ink/45 hover:bg-white"
-        } ${busy ? "cursor-wait" : "cursor-pointer"}`}
+        className={`group w-full rounded-2xl border-2 border-dashed text-center transition ${
+          compact ? "min-h-40 px-5 py-8" : "min-h-52 px-6 py-10"
+        } ${dragOver ? "border-green bg-green/5" : "border-black/15 bg-white hover:border-green"} ${
+          busy ? "cursor-wait" : "cursor-pointer"
+        }`}
       >
         <input
           ref={inputRef}
@@ -102,48 +97,20 @@ export function UploadDropzone() {
             event.target.value = "";
           }}
         />
-
-        {status.kind === "converting" ? (
-          <>
-            <p className="font-display text-2xl text-ink">PDF wordt omgezet…</p>
-            <p className="mt-2 text-sm text-ink/60">
-              Pagina {status.current} van {status.total}
-            </p>
-            <div className="mt-6 h-1.5 w-56 overflow-hidden rounded-full bg-ink/10">
-              <div
-                className="h-full rounded-full bg-accent transition-all"
-                style={{
-                  width: `${status.total ? (status.current / status.total) * 100 : 8}%`,
-                }}
-              />
-            </div>
-          </>
-        ) : status.kind === "uploading" ? (
-          <>
-            <p className="font-display text-2xl text-ink">Magazine wordt opgeslagen…</p>
-            <p className="mt-2 text-sm text-ink/60">Daarna kun je erdoorheen bladeren.</p>
-          </>
+        {status.kind === "converting" || status.kind === "uploading" ? (
+          <p className="font-medium text-ink">
+            {status.kind === "uploading" ? "Magazine wordt gepubliceerd…" : "PDF wordt omgezet…"}
+          </p>
         ) : (
           <>
-            <span className="flex h-14 w-14 items-center justify-center rounded-full bg-accent text-white shadow-lg shadow-accent/25">
-              <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 19V5M5 12l7-7 7 7" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </span>
-            <p className="mt-5 font-display text-2xl text-ink">Sleep je PDF hierheen</p>
-            <p className="mt-2 max-w-sm text-sm leading-6 text-ink/60">
-              Of klik om een bestand te kiezen. We maken er een magazine van waar je doorheen kunt bladeren.
-            </p>
-            <span className="mt-6 rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-paper transition group-hover:bg-accent">
-              Upload PDF
+            <p className="text-ink/70">Sleep de PDF hierheen om te converteren</p>
+            <span className="mt-5 inline-flex items-center gap-2 rounded-md bg-green px-5 py-2.5 text-sm font-semibold text-white">
+              ↑ Upload
             </span>
           </>
         )}
       </button>
-
-      {status.kind === "error" ? (
-        <p className="mt-4 text-center text-sm text-accent">{status.message}</p>
-      ) : null}
+      {status.kind === "error" ? <p className="mt-3 text-sm text-red-700">{status.message}</p> : null}
     </div>
   );
 }

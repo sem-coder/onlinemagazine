@@ -1,35 +1,30 @@
 @import "tailwindcss";
 
 :root {
-  --paper: #f3ead8;
-  --ink: #1c1915;
-  --accent: #9c2b1a;
-  --viewer: #141210;
+  --green: #1f7a4d;
+  --ink: #1a1f1c;
+  --paper: #f4f6f5;
+  --viewer: #1b1d1c;
 }
 
 @theme inline {
-  --color-paper: var(--paper);
+  --color-green: var(--green);
   --color-ink: var(--ink);
-  --color-accent: var(--accent);
+  --color-paper: var(--paper);
   --color-viewer: var(--viewer);
   --font-sans: var(--font-geist-sans);
-  --font-display: var(--font-fraunces);
 }
 
 html,
 body {
-  background: var(--paper);
+  background: #fff;
   color: var(--ink);
-}
-
-.font-display {
-  font-family: var(--font-display), ui-serif, Georgia, serif;
 }
 
 .book-stage {
   width: min(1100px, 96vw);
-  height: min(78dvh, 820px);
-  filter: drop-shadow(0 28px 50px rgba(0, 0, 0, 0.45));
+  height: min(74dvh, 780px);
+  filter: drop-shadow(0 24px 40px rgba(0, 0, 0, 0.4));
 }
 
 .flipbook-root,
@@ -38,14 +33,9 @@ body {
   height: 100%;
 }
 
-.flipbook-host {
-  margin: 0 auto;
-}
-
 .magazine-page {
   background: #fff;
   overflow: hidden;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
 }
 
 .magazine-page img {
@@ -55,4 +45,28 @@ body {
   object-fit: fill;
   user-select: none;
   pointer-events: none;
+}
+
+.hero-book {
+  width: min(360px, 70vw);
+  aspect-ratio: 3 / 4;
+  background: linear-gradient(160deg, #1f7a4d 0%, #145c39 100%);
+  border-radius: 4px 14px 14px 4px;
+  box-shadow:
+    12px 18px 40px rgba(20, 40, 28, 0.28),
+    inset -18px 0 24px rgba(0, 0, 0, 0.18);
+  color: white;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 28px;
+  position: relative;
+}
+
+.hero-book:before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 14px;
+  background: linear-gradient(90deg, rgba(255,255,255,.18), transparent);
 }
