@@ -73,20 +73,10 @@ async function renderPage(page: PDFPageProxy, maxEdge: number, quality: number) 
   return { blob, width: base.width, height: base.height };
 }
 
-export async function openPdf(file: File | ArrayBuffer) {
+async function openPdf(file: File | ArrayBuffer) {
   const pdfjs = await loadPdfjs();
   const data = file instanceof File ? await file.arrayBuffer() : file;
   return pdfjs.getDocument({ data }).promise;
-}
-
-export async function renderPdfPageJpeg(
-  pdf: Awaited<ReturnType<typeof openPdf>>,
-  index: number,
-  maxEdge: number,
-  quality: number,
-) {
-  const page = await pdf.getPage(index);
-  return renderPage(page, maxEdge, quality);
 }
 
 export async function inspectPdf(file: File) {

@@ -1,11 +1,20 @@
 import { randomBytes, scryptSync, timingSafeEqual, createHmac } from "node:crypto";
 import { cookies } from "next/headers";
+import type { NextResponse } from "next/server";
 import { findUserByEmail, findUserById, saveUser } from "@/lib/users";
 import type { User } from "@/lib/types";
 
 const COOKIE = "folio_session";
 const GUEST = "folio_guest";
 const SECRET = process.env.AUTH_SECRET ?? "folio-dev-secret-change-me";
+
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  sameSite: "lax" as const,
+  path: "/",
+  maxAge: 60 * 60 * 24 * 30,
+  secure: process.env.NODE_ENV === "production",
+};
 
 export function hashPassword(password: string) {
   const salt = randomBytes(16).toString("hex");
@@ -58,18 +67,18 @@ export async function ensureGuestId() {
   const existing = jar.get(GUEST)?.value;
   if (existing) return existing;
   const id = `guest_${randomBytes(6).toString("hex")}`;
-  jar.set(GUEST, id, { httpOnly: true, sameSite: "lax", path: "/", maxAge: 60 * 60 * 24 * 30 });
+  jar.set(GUEST, id, COOKIE_OPTIONS);
   return id;
 }
 
 export async function setSession(userId: string) {
   const jar = await cookies();
-  jar.set(COOKIE, encodeSession(userId), {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 30,
-  });
+  jar.set(COOKIE, encodeSession(userId), COOKIE_OPTIONS);
+}
+
+export function applySessionCookie(response: NextResponse, userId: string) {
+  response.cookies.set(COOKIE, encodeSession(userId), COOKIE_OPTIONS);
+  return response;
 }
 
 export async function clearSession() {
