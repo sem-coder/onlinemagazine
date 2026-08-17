@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+:root {
+  --paper: #f3ead8;
+  --ink: #1c1915;
+  --accent: #9c2b1a;
+  --viewer: #141210;
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-accent: var(--accent);
+  --color-viewer: var(--viewer);
+  --font-sans: var(--font-geist-sans);
+  --font-display: var(--font-fraunces);
+}
+
+html,
+body {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.font-display {
+  font-family: var(--font-display), ui-serif, Georgia, serif;
+}
+
+.book-stage {
+  width: min(1100px, 96vw);
+  height: min(78dvh, 820px);
+  filter: drop-shadow(0 28px 50px rgba(0, 0, 0, 0.45));
+}
+
+.flipbook-root,
+.flipbook-host {
+  width: 100%;
+  height: 100%;
+}
+
+.flipbook-host {
+  margin: 0 auto;
+}
+
+.magazine-page {
+  background: #fff;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+
+.magazine-page img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  user-select: none;
+  pointer-events: none;
+}
