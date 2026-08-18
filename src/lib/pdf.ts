@@ -14,6 +14,12 @@ export type RenderedPdf = {
   cover: Blob;
 };
 
+export type FittedPage = {
+  pageWidth: number;
+  pageHeight: number;
+  single: boolean;
+};
+
 function ensurePdfPolyfills() {
   const mapProto = Map.prototype as Map<unknown, unknown> & {
     getOrInsertComputed?: (key: unknown, compute: (key: unknown) => unknown) => unknown;
@@ -42,35 +48,17 @@ async function loadPdfjs() {
   return pdfjs;
 }
 
-function canvasToBlob(canvas: HTMLCanvasElement, quality: number) {
+function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number) {
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
       (blob) => {
         if (!blob) reject(new Error("Kon pagina niet omzetten"));
         else resolve(blob);
       },
-      "image/jpeg",
+      type,
       quality,
     );
   });
-}
-
-async function renderPage(page: PDFPageProxy, maxEdge: number, quality: number) {
-  const base = page.getViewport({ scale: 1 });
-  const scale = Math.min(maxEdge / Math.max(base.width, base.height), 2.2);
-  const viewport = page.getViewport({ scale });
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.floor(viewport.width);
-  canvas.height = Math.floor(viewport.height);
-  const canvasContext = canvas.getContext("2d", { alpha: false });
-  if (!canvasContext) throw new Error("Canvas niet beschikbaar");
-  canvasContext.fillStyle = "#ffffff";
-  canvasContext.fillRect(0, 0, canvas.width, canvas.height);
-  await page.render({ canvas, canvasContext, viewport }).promise;
-  const blob = await canvasToBlob(canvas, quality);
-  canvas.width = 0;
-  canvas.height = 0;
-  return { blob, width: base.width, height: base.height };
 }
 
 async function openPdf(file: File | ArrayBuffer) {
@@ -86,14 +74,51 @@ async function openPdf(file: File | ArrayBuffer) {
   }).promise;
 }
 
+async function renderPageAtSize(page: PDFPageProxy, cssWidth: number, cssHeight: number) {
+  const base = page.getViewport({ scale: 1 });
+  const dpr = Math.min(typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1, 2);
+  const scale = Math.min((cssWidth * dpr) / base.width, (cssHeight * dpr) / base.height);
+  const viewport = page.getViewport({ scale });
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.floor(viewport.width));
+  canvas.height = Math.max(1, Math.floor(viewport.height));
+  const canvasContext = canvas.getContext("2d", { alpha: false });
+  if (!canvasContext) throw new Error("Canvas niet beschikbaar");
+  canvasContext.fillStyle = "#ffffff";
+  canvasContext.fillRect(0, 0, canvas.width, canvas.height);
+  await page.render({ canvas, canvasContext, viewport }).promise;
+  const blob = await canvasToBlob(canvas, "image/jpeg", 0.92);
+  canvas.width = 0;
+  canvas.height = 0;
+  return { blob, width: base.width, height: base.height };
+}
+
+export function fitPdfInStage(
+  pageW: number,
+  pageH: number,
+  stageW: number,
+  stageH: number,
+): FittedPage {
+  const width = Math.max(pageW, 1);
+  const height = Math.max(pageH, 1);
+  const single = width >= height || stageW < 800;
+  const scale = Math.min(stageW / (width * (single ? 1 : 2)), stageH / height);
+  return {
+    pageWidth: Math.max(1, Math.round(width * scale)),
+    pageHeight: Math.max(1, Math.round(height * scale)),
+    single,
+  };
+}
+
 export async function inspectPdf(file: File) {
   const pdf = await openPdf(file);
   if (pdf.numPages > MAX_PAGES) {
     throw new Error(`Dit PDF heeft ${pdf.numPages} pagina's. Maximaal ${MAX_PAGES} voor nu.`);
   }
   const first = await pdf.getPage(1);
-  const cover = await renderPage(first, 720, 0.78);
   const base = first.getViewport({ scale: 1 });
+  const coverScale = Math.min(480 / base.width, 1);
+  const cover = await renderPageAtSize(first, base.width * coverScale, base.height * coverScale);
   return {
     pageCount: pdf.numPages,
     pageWidth: base.width,
@@ -102,8 +127,17 @@ export async function inspectPdf(file: File) {
   };
 }
 
+export async function readPdfPageSize(file: File | ArrayBuffer) {
+  const pdf = await openPdf(file);
+  const first = await pdf.getPage(1);
+  const base = first.getViewport({ scale: 1 });
+  return { pageCount: pdf.numPages, pageWidth: base.width, pageHeight: base.height };
+}
+
 export async function renderPdf(
   file: File | ArrayBuffer,
+  cssPageWidth: number,
+  cssPageHeight: number,
   onProgress?: (progress: PdfProgress) => void,
 ): Promise<RenderedPdf> {
   const pdf = await openPdf(file);
@@ -113,13 +147,13 @@ export async function renderPdf(
   }
 
   const pages: string[] = [];
-  let pageWidth = 595;
-  let pageHeight = 842;
+  let pageWidth = cssPageWidth;
+  let pageHeight = cssPageHeight;
   let cover: Blob | null = null;
 
   for (let index = 1; index <= pdf.numPages; index += 1) {
     const page = await pdf.getPage(index);
-    const rendered = await renderPage(page, index === 1 ? 1600 : 1400, 0.84);
+    const rendered = await renderPageAtSize(page, cssPageWidth, cssPageHeight);
     if (index === 1) {
       pageWidth = rendered.width;
       pageHeight = rendered.height;

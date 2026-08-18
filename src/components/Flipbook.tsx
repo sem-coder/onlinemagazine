@@ -1,47 +1,21 @@
 "use client";
 
 import { PageFlip } from "page-flip";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 type Props = {
   pages: string[];
   pageWidth: number;
   pageHeight: number;
+  single: boolean;
   onFlip?: (page: number) => void;
   onReady?: (book: PageFlip) => void;
 };
 
-type Layout = {
-  width: number;
-  height: number;
-  single: boolean;
-};
-
-function fitLayout(stageW: number, stageH: number, pageW: number, pageH: number): Layout {
-  const pad = 8;
-  const availW = Math.max(stageW - pad, 280);
-  const availH = Math.max(stageH - pad, 320);
-  const ratioW = Math.max(pageW, 1);
-  const ratioH = Math.max(pageH, 1);
-  const landscapePage = ratioW >= ratioH;
-  const single = landscapePage || availW < 760;
-
-  const scale = Math.min(availW / (ratioW * (single ? 1 : 2)), availH / ratioH);
-  return {
-    width: Math.max(1, Math.round(ratioW * scale)),
-    height: Math.max(1, Math.round(ratioH * scale)),
-    single,
-  };
-}
-
-export function Flipbook({ pages, pageWidth, pageHeight, onFlip, onReady }: Props) {
-  const stageRef = useRef<HTMLDivElement>(null);
-  const hostWrapRef = useRef<HTMLDivElement>(null);
-  const bookRef = useRef<PageFlip | null>(null);
-  const pageIndexRef = useRef(0);
+export function Flipbook({ pages, pageWidth, pageHeight, single, onFlip, onReady }: Props) {
+  const rootRef = useRef<HTMLDivElement>(null);
   const onFlipRef = useRef(onFlip);
   const onReadyRef = useRef(onReady);
-  const [layout, setLayout] = useState<Layout | null>(null);
 
   useEffect(() => {
     onFlipRef.current = onFlip;
@@ -49,47 +23,12 @@ export function Flipbook({ pages, pageWidth, pageHeight, onFlip, onReady }: Prop
   }, [onFlip, onReady]);
 
   useEffect(() => {
-    const stage = stageRef.current;
-    if (!stage) return;
+    const root = rootRef.current;
+    if (!root || pages.length === 0 || pageWidth < 2 || pageHeight < 2) return;
 
-    const measure = () => {
-      const rect = stage.getBoundingClientRect();
-      const fallbackH = window.innerHeight - 72;
-      const fallbackW = window.innerWidth;
-      const width = rect.width > 80 ? rect.width : fallbackW;
-      const height = rect.height > 200 ? rect.height : fallbackH;
-      const next = fitLayout(width, height, pageWidth, pageHeight);
-      setLayout((prev) => {
-        if (
-          prev &&
-          prev.width === next.width &&
-          prev.height === next.height &&
-          prev.single === next.single
-        ) {
-          return prev;
-        }
-        return next;
-      });
-    };
-
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(stage);
-    window.addEventListener("resize", measure);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", measure);
-    };
-  }, [pageWidth, pageHeight]);
-
-  useEffect(() => {
-    const wrap = hostWrapRef.current;
-    if (!wrap || !layout || pages.length === 0) return;
-
-    wrap.replaceChildren();
     const host = document.createElement("div");
     host.className = "flipbook-host";
-    wrap.appendChild(host);
+    root.replaceChildren(host);
 
     const elements = pages.map((src, index) => {
       const page = document.createElement("div");
@@ -104,15 +43,15 @@ export function Flipbook({ pages, pageWidth, pageHeight, onFlip, onReady }: Prop
     });
 
     const book = new PageFlip(host, {
-      width: layout.width,
-      height: layout.height,
+      width: pageWidth,
+      height: pageHeight,
       size: "fixed",
       drawShadow: true,
       flippingTime: 750,
-      usePortrait: layout.single,
+      usePortrait: single,
       autoSize: false,
       maxShadowOpacity: 0.4,
-      showCover: layout.single,
+      showCover: true,
       mobileScrollSupport: true,
       showPageCorners: true,
       disableFlipByClick: false,
@@ -120,37 +59,25 @@ export function Flipbook({ pages, pageWidth, pageHeight, onFlip, onReady }: Prop
     });
 
     book.loadFromHTML(elements);
-    const startPage = Math.min(pageIndexRef.current, pages.length - 1);
-    if (startPage > 0) book.turnToPage(startPage);
-
     book.on("flip", (event) => {
-      const index = Number(event.data);
-      pageIndexRef.current = index;
-      onFlipRef.current?.(index);
+      onFlipRef.current?.(Number(event.data));
     });
     book.on("init", () => {
-      bookRef.current = book;
       onReadyRef.current?.(book);
     });
 
-    bookRef.current = book;
-
     return () => {
       book.destroy();
-      if (bookRef.current === book) bookRef.current = null;
     };
-  }, [pages, layout]);
+  }, [pages, pageWidth, pageHeight, single]);
 
-  const bookW = layout ? (layout.single ? layout.width : layout.width * 2) : undefined;
-  const bookH = layout?.height;
+  const bookW = single ? pageWidth : pageWidth * 2;
 
   return (
-    <div ref={stageRef} className="flex h-full w-full items-center justify-center">
-      <div
-        ref={hostWrapRef}
-        className="flipbook-root"
-        style={bookW && bookH ? { width: bookW, height: bookH } : { width: "100%", height: "100%" }}
-      />
-    </div>
+    <div
+      ref={rootRef}
+      className="flipbook-root"
+      style={{ width: bookW, height: pageHeight }}
+    />
   );
 }

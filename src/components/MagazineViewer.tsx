@@ -6,7 +6,7 @@ import { PageFlip } from "page-flip";
 import { useEffect, useRef, useState } from "react";
 import { Flipbook } from "@/components/Flipbook";
 import { SharePanel } from "@/components/SharePanel";
-import { renderPdf, revokePages } from "@/lib/pdf";
+import { fitPdfInStage, readPdfPageSize, renderPdf, revokePages } from "@/lib/pdf";
 import type { Magazine } from "@/lib/types";
 
 type Props = {
@@ -25,6 +25,7 @@ export function MagazineViewer({
   openShare = false,
 }: Props) {
   const bookRef = useRef<PageFlip | null>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
   const [pages, setPages] = useState<string[]>(pagesFromImages ?? []);
   const [page, setPage] = useState(0);
   const [progress, setProgress] = useState({ current: 0, total: magazine.pageCount });
@@ -33,9 +34,10 @@ export function MagazineViewer({
   const [share, setShare] = useState(openShare);
   const [lead, setLead] = useState(false);
   const [leadDone, setLeadDone] = useState(false);
-  const [size, setSize] = useState({
-    width: magazine.pageWidth || 595,
-    height: magazine.pageHeight || 842,
+  const [layout, setLayout] = useState({
+    pageWidth: magazine.pageWidth || 595,
+    pageHeight: magazine.pageHeight || 842,
+    single: (magazine.pageWidth || 595) >= (magazine.pageHeight || 842),
   });
 
   useEffect(() => {
@@ -46,7 +48,18 @@ export function MagazineViewer({
       try {
         const response = await fetch(magazine.pdfUrl || `/api/magazines/${magazine.id}/pdf`);
         if (!response.ok) throw new Error("PDF kon niet worden geladen.");
-        const rendered = await renderPdf(await response.arrayBuffer(), (value) => {
+        const bytes = await response.arrayBuffer();
+        const real = await readPdfPageSize(bytes);
+        if (cancelled) return;
+
+        await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+        const stage = stageRef.current?.getBoundingClientRect();
+        const stageW = stage && stage.width > 80 ? stage.width : window.innerWidth;
+        const stageH = stage && stage.height > 200 ? stage.height : window.innerHeight - 72;
+        const fitted = fitPdfInStage(real.pageWidth, real.pageHeight, stageW - 16, stageH - 16);
+        setLayout(fitted);
+
+        const rendered = await renderPdf(bytes, fitted.pageWidth, fitted.pageHeight, (value) => {
           if (!cancelled) setProgress(value);
         });
         if (cancelled) {
@@ -55,7 +68,6 @@ export function MagazineViewer({
         }
         urls = rendered.pages;
         setPages(rendered.pages);
-        setSize({ width: rendered.pageWidth, height: rendered.pageHeight });
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : "Laden mislukt.");
       }
@@ -65,7 +77,15 @@ export function MagazineViewer({
       cancelled = true;
       revokePages(urls);
     };
-  }, [magazine.id, pagesFromImages]);
+  }, [magazine.id, magazine.pdfUrl, pagesFromImages]);
+
+  useEffect(() => {
+    if (!pagesFromImages?.length) return;
+    const stage = stageRef.current?.getBoundingClientRect();
+    const stageW = stage && stage.width > 80 ? stage.width : window.innerWidth;
+    const stageH = stage && stage.height > 200 ? stage.height : window.innerHeight - 72;
+    setLayout(fitPdfInStage(magazine.pageWidth, magazine.pageHeight, stageW - 16, stageH - 16));
+  }, [pagesFromImages, magazine.pageWidth, magazine.pageHeight]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -82,7 +102,6 @@ export function MagazineViewer({
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const loading = pages.length === 0 && !error;
   const embed = mode === "embed";
 
   return (
@@ -107,18 +126,15 @@ export function MagazineViewer({
       ) : null}
 
       <main className="relative min-h-0 flex-1">
-        {error ? (
-          <p className="flex h-full items-center justify-center text-sm text-red-300">{error}</p>
-        ) : loading ? (
-          <p className="flex h-full items-center justify-center text-sm text-paper/70">
-            Pagina {progress.current} van {progress.total}
-          </p>
-        ) : (
-          <div className="book-stage absolute inset-0 pb-16">
+        <div ref={stageRef} className="book-stage absolute inset-0 flex items-center justify-center pb-16">
+          {error ? (
+            <p className="text-sm text-red-300">{error}</p>
+          ) : pages.length ? (
             <Flipbook
               pages={pages}
-              pageWidth={size.width}
-              pageHeight={size.height}
+              pageWidth={layout.pageWidth}
+              pageHeight={layout.pageHeight}
+              single={layout.single}
               onFlip={(index) => {
                 setPage(index);
                 if (magazine.leadForm && index >= 2 && !leadDone) setLead(true);
@@ -128,8 +144,12 @@ export function MagazineViewer({
                 setReady(true);
               }}
             />
-          </div>
-        )}
+          ) : (
+            <p className="text-sm text-paper/70">
+              Pagina {progress.current} van {progress.total}
+            </p>
+          )}
+        </div>
       </main>
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center pb-4">
