@@ -14,25 +14,23 @@ type Props = {
 type Layout = {
   width: number;
   height: number;
-  portrait: boolean;
+  single: boolean;
 };
 
 function fitLayout(stageW: number, stageH: number, pageW: number, pageH: number): Layout {
-  const pad = 16;
+  const pad = 8;
   const availW = Math.max(stageW - pad, 280);
   const availH = Math.max(stageH - pad, 320);
   const ratioW = Math.max(pageW, 1);
   const ratioH = Math.max(pageH, 1);
+  const landscapePage = ratioW >= ratioH;
+  const single = landscapePage || availW < 760;
 
-  const scaleSpread = Math.min(availW / (ratioW * 2), availH / ratioH);
-  const scaleSingle = Math.min(availW / ratioW, availH / ratioH);
-  const portrait = availW < 720 || ratioW * scaleSpread < 220;
-
-  const scale = portrait ? scaleSingle : scaleSpread;
+  const scale = Math.min(availW / (ratioW * (single ? 1 : 2)), availH / ratioH);
   return {
     width: Math.max(1, Math.round(ratioW * scale)),
     height: Math.max(1, Math.round(ratioH * scale)),
-    portrait,
+    single,
   };
 }
 
@@ -56,17 +54,17 @@ export function Flipbook({ pages, pageWidth, pageHeight, onFlip, onReady }: Prop
 
     const measure = () => {
       const rect = stage.getBoundingClientRect();
-      const fallbackH = window.innerHeight - 140;
-      const fallbackW = window.innerWidth - 24;
+      const fallbackH = window.innerHeight - 72;
+      const fallbackW = window.innerWidth;
       const width = rect.width > 80 ? rect.width : fallbackW;
-      const height = rect.height > 240 ? rect.height : fallbackH;
+      const height = rect.height > 200 ? rect.height : fallbackH;
       const next = fitLayout(width, height, pageWidth, pageHeight);
       setLayout((prev) => {
         if (
           prev &&
           prev.width === next.width &&
           prev.height === next.height &&
-          prev.portrait === next.portrait
+          prev.single === next.single
         ) {
           return prev;
         }
@@ -111,10 +109,10 @@ export function Flipbook({ pages, pageWidth, pageHeight, onFlip, onReady }: Prop
       size: "fixed",
       drawShadow: true,
       flippingTime: 750,
-      usePortrait: layout.portrait,
+      usePortrait: layout.single,
       autoSize: false,
-      maxShadowOpacity: 0.45,
-      showCover: true,
+      maxShadowOpacity: 0.4,
+      showCover: layout.single,
       mobileScrollSupport: true,
       showPageCorners: true,
       disableFlipByClick: false,
@@ -143,7 +141,7 @@ export function Flipbook({ pages, pageWidth, pageHeight, onFlip, onReady }: Prop
     };
   }, [pages, layout]);
 
-  const bookW = layout ? (layout.portrait ? layout.width : layout.width * 2) : undefined;
+  const bookW = layout ? (layout.single ? layout.width : layout.width * 2) : undefined;
   const bookH = layout?.height;
 
   return (

@@ -88,8 +88,8 @@ export function MagazineViewer({
   return (
     <div className={`relative flex flex-col overflow-hidden bg-viewer text-paper ${embed ? "h-full min-h-[640px]" : "h-dvh"}`}>
       {!embed ? (
-        <header className="flex items-center justify-between px-5 py-3">
-          <Link href="/" className="text-sm text-paper/70">
+        <header className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center justify-between px-5 py-3">
+          <Link href="/" className="pointer-events-auto text-sm text-paper/70">
             Folio
           </Link>
           <div className="text-center">
@@ -99,14 +99,14 @@ export function MagazineViewer({
           <button
             type="button"
             onClick={() => setShare(true)}
-            className="rounded-full bg-green px-3 py-1.5 text-sm text-white"
+            className="pointer-events-auto rounded-full bg-green px-3 py-1.5 text-sm text-white"
           >
             Deel / embed
           </button>
         </header>
       ) : null}
 
-      <main className="relative min-h-0 flex-1 px-3 pb-24 pt-2">
+      <main className="relative min-h-0 flex-1">
         {error ? (
           <p className="flex h-full items-center justify-center text-sm text-red-300">{error}</p>
         ) : loading ? (
@@ -114,7 +114,7 @@ export function MagazineViewer({
             Pagina {progress.current} van {progress.total}
           </p>
         ) : (
-          <div className="book-stage absolute inset-3 bottom-24">
+          <div className="book-stage absolute inset-0 pb-16">
             <Flipbook
               pages={pages}
               pageWidth={size.width}
