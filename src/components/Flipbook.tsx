@@ -18,16 +18,15 @@ type Layout = {
 };
 
 function fitLayout(stageW: number, stageH: number, pageW: number, pageH: number): Layout {
-  const pad = 20;
-  const availW = Math.max(stageW - pad, 120);
-  const availH = Math.max(stageH - pad, 160);
+  const pad = 16;
+  const availW = Math.max(stageW - pad, 280);
+  const availH = Math.max(stageH - pad, 320);
   const ratioW = Math.max(pageW, 1);
   const ratioH = Math.max(pageH, 1);
 
   const scaleSpread = Math.min(availW / (ratioW * 2), availH / ratioH);
   const scaleSingle = Math.min(availW / ratioW, availH / ratioH);
-  const spreadPageW = ratioW * scaleSpread;
-  const portrait = availW < 680 || spreadPageW < 180;
+  const portrait = availW < 720 || ratioW * scaleSpread < 220;
 
   const scale = portrait ? scaleSingle : scaleSpread;
   return {
@@ -57,7 +56,11 @@ export function Flipbook({ pages, pageWidth, pageHeight, onFlip, onReady }: Prop
 
     const measure = () => {
       const rect = stage.getBoundingClientRect();
-      const next = fitLayout(rect.width, rect.height, pageWidth, pageHeight);
+      const fallbackH = window.innerHeight - 140;
+      const fallbackW = window.innerWidth - 24;
+      const width = rect.width > 80 ? rect.width : fallbackW;
+      const height = rect.height > 240 ? rect.height : fallbackH;
+      const next = fitLayout(width, height, pageWidth, pageHeight);
       setLayout((prev) => {
         if (
           prev &&
@@ -74,7 +77,11 @@ export function Flipbook({ pages, pageWidth, pageHeight, onFlip, onReady }: Prop
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(stage);
-    return () => observer.disconnect();
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
   }, [pageWidth, pageHeight]);
 
   useEffect(() => {

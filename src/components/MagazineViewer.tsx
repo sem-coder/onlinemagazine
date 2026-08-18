@@ -86,7 +86,7 @@ export function MagazineViewer({
   const embed = mode === "embed";
 
   return (
-    <div className={`relative flex flex-col bg-viewer text-paper ${embed ? "min-h-[640px]" : "min-h-dvh"}`}>
+    <div className={`relative flex flex-col overflow-hidden bg-viewer text-paper ${embed ? "h-full min-h-[640px]" : "h-dvh"}`}>
       {!embed ? (
         <header className="flex items-center justify-between px-5 py-3">
           <Link href="/" className="text-sm text-paper/70">
@@ -106,15 +106,15 @@ export function MagazineViewer({
         </header>
       ) : null}
 
-      <main className="relative flex min-h-0 flex-1 items-center justify-center px-3 pb-24 pt-2">
+      <main className="relative min-h-0 flex-1 px-3 pb-24 pt-2">
         {error ? (
-          <p className="text-sm text-red-300">{error}</p>
+          <p className="flex h-full items-center justify-center text-sm text-red-300">{error}</p>
         ) : loading ? (
-          <p className="text-sm text-paper/70">
+          <p className="flex h-full items-center justify-center text-sm text-paper/70">
             Pagina {progress.current} van {progress.total}
           </p>
         ) : (
-          <div className="book-stage h-full w-full">
+          <div className="book-stage absolute inset-3 bottom-24">
             <Flipbook
               pages={pages}
               pageWidth={size.width}
