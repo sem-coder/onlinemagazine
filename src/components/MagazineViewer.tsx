@@ -33,6 +33,10 @@ export function MagazineViewer({
   const [share, setShare] = useState(openShare);
   const [lead, setLead] = useState(false);
   const [leadDone, setLeadDone] = useState(false);
+  const [size, setSize] = useState({
+    width: magazine.pageWidth || 595,
+    height: magazine.pageHeight || 842,
+  });
 
   useEffect(() => {
     if (pagesFromImages?.length) return;
@@ -51,6 +55,7 @@ export function MagazineViewer({
         }
         urls = rendered.pages;
         setPages(rendered.pages);
+        setSize({ width: rendered.pageWidth, height: rendered.pageHeight });
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : "Laden mislukt.");
       }
@@ -101,7 +106,7 @@ export function MagazineViewer({
         </header>
       ) : null}
 
-      <main className="relative flex flex-1 items-center justify-center px-3 pb-24 pt-2">
+      <main className="relative flex min-h-0 flex-1 items-center justify-center px-3 pb-24 pt-2">
         {error ? (
           <p className="text-sm text-red-300">{error}</p>
         ) : loading ? (
@@ -109,11 +114,11 @@ export function MagazineViewer({
             Pagina {progress.current} van {progress.total}
           </p>
         ) : (
-          <div className="book-stage">
+          <div className="book-stage h-full w-full">
             <Flipbook
               pages={pages}
-              pageWidth={magazine.pageWidth}
-              pageHeight={magazine.pageHeight}
+              pageWidth={size.width}
+              pageHeight={size.height}
               onFlip={(index) => {
                 setPage(index);
                 if (magazine.leadForm && index >= 2 && !leadDone) setLead(true);
