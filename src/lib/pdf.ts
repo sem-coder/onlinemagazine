@@ -101,12 +101,11 @@ export function fitPdfInStage(
 ): FittedPage {
   const width = Math.max(pageW, 1);
   const height = Math.max(pageH, 1);
-  const single = width >= height || stageW < 800;
-  const scale = Math.min(stageW / (width * (single ? 1 : 2)), stageH / height);
+  const scale = Math.min(stageW / width, stageH / height);
   return {
     pageWidth: Math.max(1, Math.round(width * scale)),
     pageHeight: Math.max(1, Math.round(height * scale)),
-    single,
+    single: true,
   };
 }
 

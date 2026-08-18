@@ -37,7 +37,7 @@ export function MagazineViewer({
   const [layout, setLayout] = useState({
     pageWidth: magazine.pageWidth || 595,
     pageHeight: magazine.pageHeight || 842,
-    single: (magazine.pageWidth || 595) >= (magazine.pageHeight || 842),
+    single: true,
   });
 
   useEffect(() => {
@@ -134,7 +134,6 @@ export function MagazineViewer({
               pages={pages}
               pageWidth={layout.pageWidth}
               pageHeight={layout.pageHeight}
-              single={layout.single}
               onFlip={(index) => {
                 setPage(index);
                 if (magazine.leadForm && index >= 2 && !leadDone) setLead(true);
