@@ -29,6 +29,8 @@ declare module "page-flip" {
     update(): void;
     loadFromImages(images: string[]): void;
     loadFromHTML(items: HTMLElement[] | NodeListOf<HTMLElement>): void;
+    updateFromHtml(items: HTMLElement[] | NodeListOf<HTMLElement>): void;
+    updateFromImages(images: string[]): void;
     flipNext(corner?: "top" | "bottom"): void;
     flipPrev(corner?: "top" | "bottom"): void;
     flip(page: number, corner?: "top" | "bottom"): void;

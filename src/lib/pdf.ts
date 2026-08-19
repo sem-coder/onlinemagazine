@@ -203,10 +203,31 @@ export async function inspectPdf(file: File) {
   };
 }
 
+const PRELOAD_FLIP_PAGES = 3;
+
+function estimatedFlipCount(pdfPages: number, split: boolean) {
+  if (!split) return pdfPages;
+  return Math.max(1, pdfPages * 2 - 2);
+}
+
+async function renderPdfPage(
+  page: PDFPageProxy,
+  size: PageSize,
+  plan: ReturnType<typeof planPdfPages>,
+  fitted: FittedPage,
+) {
+  if (plan.split && isSpreadPage(size, plan.leaf)) {
+    return [...(await renderSpreadHalves(page, fitted.pageWidth, fitted.pageHeight))];
+  }
+  const rendered = await renderPageAtSize(page, fitted.pageWidth, fitted.pageHeight);
+  return [rendered.blob];
+}
+
 export async function renderPdf(
   file: File | ArrayBuffer,
   fit: (pageW: number, pageH: number, portraitBook: boolean) => FittedPage,
   onProgress?: (progress: PdfProgress) => void,
+  onBatch?: (payload: { pages: string[]; fitted: FittedPage; done: boolean }) => void,
 ): Promise<RenderedPdf & { fitted: FittedPage }> {
   const pdf = await openPdf(file);
 
@@ -214,38 +235,50 @@ export async function renderPdf(
     throw new Error(`Dit PDF heeft ${pdf.numPages} pagina's. Maximaal ${MAX_PAGES} voor nu.`);
   }
 
-  const sizes = await readPageSizes(pdf);
-  const plan = planPdfPages(sizes);
-  if (plan.pageCount > MAX_FLIP_PAGES) {
-    throw new Error(`Dit PDF wordt ${plan.pageCount} bladzijden. Maximaal ${MAX_FLIP_PAGES} voor nu.`);
+  const peekCount = Math.min(pdf.numPages, 4);
+  const peekSizes: PageSize[] = [];
+  for (let index = 1; index <= peekCount; index += 1) {
+    const page = await pdf.getPage(index);
+    const viewport = page.getViewport({ scale: 1 });
+    peekSizes.push({ width: viewport.width, height: viewport.height });
   }
+  const plan = planPdfPages(peekSizes);
+  const estimated = estimatedFlipCount(pdf.numPages, plan.split);
   const fitted = fit(plan.leaf.width, plan.leaf.height, plan.portraitBook);
 
   const pages: string[] = [];
   let cover: Blob | null = null;
   let done = 0;
+  let firstBatch = false;
 
   for (let index = 1; index <= pdf.numPages; index += 1) {
     const page = await pdf.getPage(index);
-    const size = sizes[index - 1];
-    if (plan.split && size && isSpreadPage(size, plan.leaf)) {
-      const halves = await renderSpreadHalves(page, fitted.pageWidth, fitted.pageHeight);
-      for (const blob of halves) {
-        if (!cover) cover = blob;
-        pages.push(URL.createObjectURL(blob));
-        done += 1;
-        onProgress?.({ current: done, total: plan.pageCount });
-      }
-    } else {
-      const rendered = await renderPageAtSize(page, fitted.pageWidth, fitted.pageHeight);
-      if (!cover) cover = rendered.blob;
-      pages.push(URL.createObjectURL(rendered.blob));
+    const viewport = page.getViewport({ scale: 1 });
+    const size = { width: viewport.width, height: viewport.height };
+    const blobs = await renderPdfPage(page, size, plan, fitted);
+    for (const blob of blobs) {
+      if (!cover) cover = blob;
+      pages.push(URL.createObjectURL(blob));
       done += 1;
-      onProgress?.({ current: done, total: plan.pageCount });
+      onProgress?.({ current: done, total: Math.max(estimated, done) });
+    }
+
+    if (!firstBatch && (pages.length >= PRELOAD_FLIP_PAGES || index === pdf.numPages)) {
+      firstBatch = true;
+      onBatch?.({ pages: [...pages], fitted, done: index === pdf.numPages });
+    } else if (firstBatch && (index === pdf.numPages || pages.length % 4 === 0)) {
+      onBatch?.({ pages: [...pages], fitted, done: index === pdf.numPages });
+    }
+
+    if (firstBatch && index < pdf.numPages) {
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
     }
   }
 
   if (!cover) throw new Error("PDF heeft geen pagina's");
+
+  onProgress?.({ current: pages.length, total: pages.length });
+  onBatch?.({ pages: [...pages], fitted, done: true });
 
   return {
     pageCount: pages.length,

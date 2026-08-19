@@ -64,14 +64,21 @@ export function MagazineViewer({
           (value) => {
             if (!cancelled) setProgress(value);
           },
+          (batch) => {
+            if (cancelled) return;
+            urls = batch.pages;
+            setLayout(batch.fitted);
+            setPages(batch.pages);
+          },
         );
         if (cancelled) {
           revokePages(rendered.pages);
           return;
         }
-        setLayout(rendered.fitted);
         urls = rendered.pages;
+        setLayout(rendered.fitted);
         setPages(rendered.pages);
+        setProgress({ current: rendered.pages.length, total: rendered.pages.length });
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : "Laden mislukt.");
       }
@@ -128,6 +135,9 @@ export function MagazineViewer({
   }
 
   const embed = mode === "embed";
+  const totalPages = Math.max(progress.total, pages.length, magazine.pageCount);
+  const loading = progress.current < totalPages || (pages.length === 0 && !error);
+  const loadPercent = totalPages ? Math.min(100, Math.round((progress.current / totalPages) * 100)) : 0;
 
   return (
     <div className={`relative flex flex-col overflow-hidden bg-viewer text-paper ${embed ? "h-full min-h-[640px]" : "h-dvh"}`}>
@@ -138,7 +148,7 @@ export function MagazineViewer({
           </Link>
           <div className="text-center">
             <p className="text-sm font-medium">{magazine.title}</p>
-            <p className="text-xs text-paper/50">{(pages.length || magazine.pageCount)} pagina’s</p>
+            <p className="text-xs text-paper/50">{totalPages} pagina’s</p>
           </div>
           <button
             type="button"
@@ -148,6 +158,17 @@ export function MagazineViewer({
             Deel / embed
           </button>
         </header>
+      ) : null}
+
+      {loading ? (
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-20">
+          <div className="h-1 bg-white/10">
+            <div className="h-full bg-green transition-[width] duration-200" style={{ width: `${loadPercent}%` }} />
+          </div>
+          <p className="mt-2 text-center text-[11px] text-paper/55">
+            {pages.length ? `Laden ${loadPercent}%` : `Pagina ${progress.current} van ${totalPages}`}
+          </p>
+        </div>
       ) : null}
 
       <main className="relative min-h-0 flex-1">
@@ -162,9 +183,8 @@ export function MagazineViewer({
               single={layout.single}
               onFlip={(index) => {
                 setPage(index);
-                const total = pages.length || magazine.pageCount;
-                if (!magazine.leadForm || leadLockRef.current || total < 1) return;
-                if ((index + 1) / total >= 0.1) {
+                if (!magazine.leadForm || leadLockRef.current || totalPages < 1) return;
+                if ((index + 1) / totalPages >= 0.1) {
                   leadLockRef.current = true;
                   setLead(true);
                 }
@@ -175,9 +195,7 @@ export function MagazineViewer({
               }}
             />
           ) : (
-            <p className="text-sm text-paper/70">
-              Pagina {progress.current} van {progress.total}
-            </p>
+            <p className="text-sm text-paper/70">Magazine wordt geladen…</p>
           )}
         </div>
       </main>
@@ -188,11 +206,11 @@ export function MagazineViewer({
             ‹
           </ToolButton>
           <span className="min-w-16 px-2 text-center text-paper/80">
-            {pageLabel(page, pages.length || magazine.pageCount, layout.single)}
+            {pageLabel(page, totalPages, layout.single)}
           </span>
           <ToolButton
             label="Volgende"
-            disabled={!ready || page >= (pages.length || magazine.pageCount) - 1}
+            disabled={!ready || page >= pages.length - 1}
             onClick={() => bookRef.current?.flipNext()}
           >
             ›
