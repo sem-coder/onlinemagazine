@@ -9,7 +9,7 @@ const FEATURES = [
   ["Embed", "Iframe voor WordPress, Shopify of je eigen site. Geen redirect nodig."],
   ["Klantomgeving", "Flipbooks, opslag, team, leads en statistieken op één dashboard."],
   ["Leadformulieren", "Vang e-mailadressen in het magazine en bekijk ze terug (Professional)."],
-  ["White-label", "Geen Folio-logo in de viewer vanaf Standard."],
+  ["White-label", "Geen PDFmagazine.nl-logo in de viewer vanaf Standard."],
   ["Boekenkast", "Publieke overzichtspagina van al je catalogs (Premium)."],
   ["Team", "Nodig extra gebruikers uit op hetzelfde account."],
 ];

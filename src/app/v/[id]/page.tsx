@@ -10,7 +10,7 @@ type Params = { params: Promise<{ id: string }>; searchParams: Promise<{ share?:
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { id } = await params;
   const magazine = await getMagazineBySlugOrId(id);
-  return { title: magazine ? `${magazine.title} — Folio` : "Magazine — Folio" };
+  return { title: magazine ? `${magazine.title} — PDFmagazine.nl` : "Magazine — PDFmagazine.nl" };
 }
 
 export default async function ViewPage({ params, searchParams }: Params) {

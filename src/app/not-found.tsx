@@ -8,7 +8,7 @@ export default function NotFound() {
         Deze link bestaat niet (meer). Upload het PDF opnieuw om een nieuw magazine te maken.
       </p>
       <Link href="/" className="mt-8 rounded-full bg-ink px-5 py-2.5 text-sm text-paper">
-        Terug naar Folio
+        Terug naar PDFmagazine.nl
       </Link>
     </div>
   );

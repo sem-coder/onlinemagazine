@@ -1,4 +1,4 @@
-# Folio
+# PDFmagazine.nl
 
 Upload een PDF en blader erdoorheen alsof het een gedrukt magazine is.
 

@@ -34,7 +34,7 @@ export default async function Home() {
           <div className="flex justify-center">
             <div className="hero-book">
               <p className="text-sm uppercase tracking-[0.25em] text-white/70">Preview</p>
-              <p className="mt-2 text-4xl font-semibold">Folio</p>
+              <p className="mt-2 text-3xl font-semibold leading-tight">PDFmagazine.nl</p>
               <p className="mt-2 text-white/80">Blader alsof het gedrukt is</p>
             </div>
           </div>

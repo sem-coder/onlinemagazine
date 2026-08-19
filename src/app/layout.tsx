@@ -9,7 +9,7 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "Folio — PDF to flipbook",
+  title: "PDFmagazine.nl — PDF naar flipbook",
   description:
     "Zet een PDF om naar een magazine met page-flip. Deel een link of embed op je website.",
 };

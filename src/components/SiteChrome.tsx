@@ -11,7 +11,9 @@ export function Logo({ dark = false }: { dark?: boolean }) {
           <path d="M14 3v5h5" fill="none" stroke="currentColor" strokeWidth="1.6" />
         </svg>
       </span>
-      <span className={dark ? "text-white" : "text-ink"}>Folio</span>
+      <span className={`text-[15px] tracking-tight sm:text-base ${dark ? "text-white" : "text-ink"}`}>
+        PDFmagazine.nl
+      </span>
     </Link>
   );
 }

@@ -154,7 +154,7 @@ export function MagazineViewer({
       {!embed ? (
         <header className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center justify-between px-5 py-3">
           <Link href="/" className="pointer-events-auto text-sm text-paper/70">
-            Folio
+            PDFmagazine.nl
           </Link>
           <div className="text-center">
             <p className="text-sm font-medium">{magazine.title}</p>
@@ -228,7 +228,7 @@ export function MagazineViewer({
           href="/"
           className="absolute bottom-4 left-4 rounded bg-green px-2 py-1 text-[11px] font-semibold text-white"
         >
-          Made with Folio
+          Made with PDFmagazine.nl
         </Link>
       ) : null}
 

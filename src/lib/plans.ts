@@ -28,7 +28,7 @@ export const PLANS: Plan[] = [
       "Deelbare link",
       "Embed op je website",
       "Onbeperkt pagina’s",
-      "Folio-branding in de viewer",
+      "PDFmagazine.nl-branding in de viewer",
     ],
   },
   {
@@ -43,7 +43,7 @@ export const PLANS: Plan[] = [
     highlight: true,
     features: [
       "Onbeperkt flipbooks",
-      "Geen Folio-branding",
+      "Geen PDFmagazine.nl-branding",
       "Embed + QR + download",
       "10 GB opslag",
       "3 gebruikers",
