@@ -33,7 +33,7 @@ export function MagazineViewer({
   const [ready, setReady] = useState(false);
   const [share, setShare] = useState(openShare);
   const [lead, setLead] = useState(false);
-  const [leadDone, setLeadDone] = useState(false);
+  const leadLockRef = useRef(false);
   const [layout, setLayout] = useState({
     pageWidth: magazine.pageWidth || 595,
     pageHeight: magazine.pageHeight || 842,
@@ -107,6 +107,26 @@ export function MagazineViewer({
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(leadStorageKey(magazine.id)) === "done") {
+        leadLockRef.current = true;
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [magazine.id]);
+
+  function dismissLead() {
+    leadLockRef.current = true;
+    setLead(false);
+    try {
+      localStorage.setItem(leadStorageKey(magazine.id), "done");
+    } catch {
+      /* ignore */
+    }
+  }
+
   const embed = mode === "embed";
 
   return (
@@ -142,7 +162,12 @@ export function MagazineViewer({
               single={layout.single}
               onFlip={(index) => {
                 setPage(index);
-                if (magazine.leadForm && index >= 2 && !leadDone) setLead(true);
+                const total = pages.length || magazine.pageCount;
+                if (!magazine.leadForm || leadLockRef.current || total < 1) return;
+                if ((index + 1) / total >= 0.1) {
+                  leadLockRef.current = true;
+                  setLead(true);
+                }
               }}
               onReady={(book) => {
                 bookRef.current = book;
@@ -214,8 +239,7 @@ export function MagazineViewer({
                   email: form.get("email"),
                 }),
               });
-              setLeadDone(true);
-              setLead(false);
+              dismissLead();
             }}
           >
             <p className="font-semibold">Blijf op de hoogte</p>
@@ -231,7 +255,7 @@ export function MagazineViewer({
             <button type="submit" className="mt-4 w-full rounded-md bg-green py-2 text-sm text-white">
               Verstuur
             </button>
-            <button type="button" onClick={() => setLead(false)} className="mt-2 w-full text-sm text-ink/50">
+            <button type="button" onClick={dismissLead} className="mt-2 w-full text-sm text-ink/50">
               Nee bedankt
             </button>
           </form>
@@ -239,6 +263,10 @@ export function MagazineViewer({
       ) : null}
     </div>
   );
+}
+
+function leadStorageKey(magazineId: string) {
+  return `folio-lead-${magazineId}`;
 }
 
 function pageLabel(page: number, total: number, single: boolean) {
