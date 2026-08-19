@@ -1,7 +1,7 @@
 import { randomBytes, scryptSync, timingSafeEqual, createHmac } from "node:crypto";
 import { cookies } from "next/headers";
 import type { NextResponse } from "next/server";
-import { findUserByEmail, findUserById, saveUser } from "@/lib/users";
+import { attachTeamMembership, findUserByEmail, findUserById, findWorkspaceOwner, saveUser, uniqueBookshelfSlug } from "@/lib/users";
 import type { User } from "@/lib/types";
 
 const COOKIE = "folio_session";
@@ -99,8 +99,11 @@ export async function registerUser(input: { email: string; name: string; passwor
     plan: "free",
     planRenewsAt: null,
     createdAt: new Date().toISOString(),
+    bookshelfSlug: await uniqueBookshelfSlug(input.name.trim() || email.split("@")[0]),
+    teamMembers: [],
   };
   await saveUser(user);
+  await attachTeamMembership(user);
   return user;
 }
 
@@ -109,11 +112,22 @@ export async function loginUser(email: string, password: string) {
   if (!user || !verifyPassword(password, user.passwordHash)) {
     throw new Error("E-mail of wachtwoord klopt niet.");
   }
+  await attachTeamMembership(user);
   return user;
 }
 
 export async function actorId() {
   const user = await getSessionUser();
-  if (user) return user.id;
+  if (user) {
+    const owner = await findWorkspaceOwner(user);
+    return owner.id;
+  }
   return ensureGuestId();
+}
+
+export async function workspaceUser() {
+  const user = await getSessionUser();
+  if (!user) return null;
+  const owner = await findWorkspaceOwner(user);
+  return { user, owner, isMember: owner.id !== user.id };
 }

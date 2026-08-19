@@ -12,10 +12,23 @@ export function embedCode(magazine: Magazine, origin: string, height = 640) {
   return `<iframe src="${src}" width="100%" height="${height}" style="border:0" allowfullscreen loading="lazy" title="${magazine.title}"></iframe>`;
 }
 
-export function SharePanel({ magazine }: { magazine: Magazine }) {
+export function SharePanel({
+  magazine,
+  canDownload = false,
+}: {
+  magazine: Magazine;
+  canDownload?: boolean;
+}) {
   const origin = typeof window === "undefined" ? "" : window.location.origin;
-  const link = useMemo(() => shareUrl(magazine, origin || "https://onlinemagazine.vercel.app"), [magazine, origin]);
-  const iframe = useMemo(() => embedCode(magazine, origin || "https://onlinemagazine.vercel.app"), [magazine, origin]);
+  const link = useMemo(
+    () => shareUrl(magazine, origin || "https://onlinemagazine.vercel.app"),
+    [magazine, origin],
+  );
+  const iframe = useMemo(
+    () => embedCode(magazine, origin || "https://onlinemagazine.vercel.app"),
+    [magazine, origin],
+  );
+  const qr = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=8&data=${encodeURIComponent(link)}`;
   const [copied, setCopied] = useState<"link" | "embed" | null>(null);
 
   async function copy(kind: "link" | "embed") {
@@ -37,6 +50,15 @@ export function SharePanel({ magazine }: { magazine: Magazine }) {
         </div>
       </div>
       <div>
+        <p className="text-sm font-semibold">QR-code</p>
+        <p className="mt-1 text-sm text-ink/60">Scan om het magazine te openen.</p>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={qr} alt={`QR-code voor ${magazine.title}`} className="mt-3 h-40 w-40 rounded-md bg-white p-2 ring-1 ring-black/10" />
+        <a href={qr} download={`${magazine.slug}-qr.png`} className="mt-2 inline-block text-sm text-green">
+          Download QR
+        </a>
+      </div>
+      <div>
         <p className="text-sm font-semibold">Embed op je website</p>
         <p className="mt-1 text-sm text-ink/60">Plak deze iframe in WordPress, Shopify of je eigen HTML.</p>
         <textarea readOnly value={iframe} rows={3} className="mt-3 w-full rounded-md border border-black/10 px-3 py-2 font-mono text-xs" />
@@ -44,6 +66,18 @@ export function SharePanel({ magazine }: { magazine: Magazine }) {
           {copied === "embed" ? "Gekopieerd" : "Kopieer embed-code"}
         </button>
       </div>
+      {canDownload ? (
+        <div>
+          <p className="text-sm font-semibold">Download PDF</p>
+          <p className="mt-1 text-sm text-ink/60">De originele brochure, zonder conversie.</p>
+          <a
+            href={`/api/magazines/${magazine.id}/pdf?download=1`}
+            className="mt-3 inline-flex rounded-md bg-ink px-3 py-2 text-sm text-white"
+          >
+            Download PDF
+          </a>
+        </div>
+      ) : null}
     </div>
   );
 }

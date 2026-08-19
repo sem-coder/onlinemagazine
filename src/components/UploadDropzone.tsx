@@ -78,6 +78,7 @@ export function UploadDropzone({ compact = false }: { compact?: boolean }) {
               pageCount: inspected.pageCount,
               pageWidth: Math.round(inspected.pageWidth),
               pageHeight: Math.round(inspected.pageHeight),
+              bytes: file.size,
             }),
           });
           const data = await readApiJson(response);

@@ -11,11 +11,27 @@ export type Magazine = {
   createdAt: string;
   ownerId: string;
   views: number;
+  viewsByDay: Record<string, number>;
   public: boolean;
   leadForm: boolean;
   expiresAt: string | null;
   pdfUrl?: string | null;
   coverUrl?: string | null;
+  bytes?: number;
+};
+
+export type Lead = {
+  id: string;
+  magazineId: string;
+  name: string;
+  email: string;
+  createdAt: string;
+};
+
+export type TeamMember = {
+  email: string;
+  userId: string | null;
+  invitedAt: string;
 };
 
 export type User = {
@@ -26,11 +42,13 @@ export type User = {
   plan: PlanId;
   planRenewsAt: string | null;
   createdAt: string;
+  bookshelfSlug: string;
+  teamMembers: TeamMember[];
 };
 
 export const MAGAZINE_ID_PATTERN = /^[A-Za-z0-9_-]{8,32}$/;
 export const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const MAX_PDF_BYTES = 40 * 1024 * 1024;
-export const MAX_PAGES = 80;
-export const MAX_FLIP_PAGES = 160;
+export const MAX_PAGES = 400;
+export const MAX_FLIP_PAGES = 800;
 export const GUEST_TTL_DAYS = 7;

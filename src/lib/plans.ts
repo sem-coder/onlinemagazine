@@ -8,6 +8,7 @@ export type Plan = {
   blurb: string;
   flipbooks: number | null;
   storageGb: number;
+  seats: number;
   features: string[];
   highlight?: boolean;
 };
@@ -21,6 +22,7 @@ export const PLANS: Plan[] = [
     blurb: "Publiceer je eerste magazines en deel ze meteen.",
     flipbooks: 5,
     storageGb: 1,
+    seats: 1,
     features: [
       "5 flipbooks",
       "Deelbare link",
@@ -37,13 +39,14 @@ export const PLANS: Plan[] = [
     blurb: "Voor winkels en merken die professioneel willen delen.",
     flipbooks: null,
     storageGb: 10,
+    seats: 3,
     highlight: true,
     features: [
       "Onbeperkt flipbooks",
       "Geen Folio-branding",
       "Embed + QR + download",
       "10 GB opslag",
-      "3 gebruikers later",
+      "3 gebruikers",
     ],
   },
   {
@@ -54,12 +57,13 @@ export const PLANS: Plan[] = [
     blurb: "Meet wat lezers doen en vang leads vanuit je catalogus.",
     flipbooks: null,
     storageGb: 20,
+    seats: 10,
     features: [
       "Alles in Standard",
       "Lezersstatistieken",
       "Leadformulier in het magazine",
       "Eigen URL-slug",
-      "20 GB opslag",
+      "10 gebruikers · 20 GB",
     ],
   },
   {
@@ -70,12 +74,13 @@ export const PLANS: Plan[] = [
     blurb: "White-label voor bureaus en grote catalogs.",
     flipbooks: null,
     storageGb: 40,
+    seats: 20,
     features: [
       "Alles in Professional",
       "Boekenkast / overzichtspagina",
       "Eigen domein (binnenkort)",
       "Prioriteit support",
-      "40 GB opslag",
+      "20 gebruikers · 40 GB",
     ],
   },
 ];
@@ -84,7 +89,10 @@ export function getPlan(id: PlanId) {
   return PLANS.find((plan) => plan.id === id) ?? PLANS[0];
 }
 
-export function canUse(plan: PlanId, feature: "brandingOff" | "stats" | "leads" | "slug" | "download") {
+export function canUse(
+  plan: PlanId,
+  feature: "brandingOff" | "stats" | "leads" | "slug" | "download" | "bookshelf" | "prioritySupport",
+) {
   const rank: Record<PlanId, number> = {
     free: 0,
     standard: 1,
@@ -97,6 +105,19 @@ export function canUse(plan: PlanId, feature: "brandingOff" | "stats" | "leads" 
     slug: 2,
     stats: 2,
     leads: 2,
+    bookshelf: 3,
+    prioritySupport: 3,
   };
   return rank[plan] >= need[feature];
+}
+
+export function storageLimitBytes(storageGb: number) {
+  return storageGb * 1024 * 1024 * 1024;
+}
+
+export function formatBytes(bytes: number) {
+  if (bytes <= 0) return "0 MB";
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }

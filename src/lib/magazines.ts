@@ -41,11 +41,13 @@ function normalizeMagazine(raw: Partial<Magazine> & { id: string }): Magazine {
     createdAt: raw.createdAt || new Date().toISOString(),
     ownerId: raw.ownerId || "guest",
     views: raw.views ?? 0,
+    viewsByDay: raw.viewsByDay ?? {},
     public: raw.public ?? true,
     leadForm: raw.leadForm ?? false,
     expiresAt: raw.expiresAt ?? null,
     pdfUrl: raw.pdfUrl ?? null,
     coverUrl: raw.coverUrl ?? null,
+    bytes: raw.bytes ?? 0,
   };
 }
 
@@ -136,8 +138,22 @@ export async function uniqueSlug(base: string, exceptId?: string) {
 export async function bumpViews(id: string) {
   const magazine = await getMagazine(id);
   if (!magazine) return;
+  const day = new Date().toISOString().slice(0, 10);
+  const viewsByDay = { ...magazine.viewsByDay };
+  viewsByDay[day] = (viewsByDay[day] ?? 0) + 1;
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 90);
+  const minDay = cutoff.toISOString().slice(0, 10);
+  for (const key of Object.keys(viewsByDay)) {
+    if (key < minDay) delete viewsByDay[key];
+  }
   magazine.views += 1;
+  magazine.viewsByDay = viewsByDay;
   await writeMeta(magazine);
+}
+
+export function usedStorageBytes(magazines: { bytes?: number }[]) {
+  return magazines.reduce((sum, magazine) => sum + (magazine.bytes ?? 0), 0);
 }
 
 export async function deleteMagazine(id: string, ownerId: string) {

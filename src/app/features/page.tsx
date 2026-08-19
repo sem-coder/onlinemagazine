@@ -5,11 +5,13 @@ export const dynamic = "force-dynamic";
 
 const FEATURES = [
   ["Page-flip", "Realistische bladzijde, spread op desktop, één pagina op mobiel."],
-  ["Unieke link", "Elke PDF krijgt /v/jouw-titel om te delen in mail, ads of WhatsApp."],
+  ["Unieke link + QR", "Elke PDF krijgt /v/jouw-titel. Deel de URL of een QR-code."],
   ["Embed", "Iframe voor WordPress, Shopify of je eigen site. Geen redirect nodig."],
-  ["Klantomgeving", "Al je flipbooks, weergaven en instellingen op één dashboard."],
-  ["Leadformulieren", "Vang e-mailadressen in het magazine (Professional)."],
+  ["Klantomgeving", "Flipbooks, opslag, team, leads en statistieken op één dashboard."],
+  ["Leadformulieren", "Vang e-mailadressen in het magazine en bekijk ze terug (Professional)."],
   ["White-label", "Geen Folio-logo in de viewer vanaf Standard."],
+  ["Boekenkast", "Publieke overzichtspagina van al je catalogs (Premium)."],
+  ["Team", "Nodig extra gebruikers uit op hetzelfde account."],
 ];
 
 export default async function FeaturesPage() {

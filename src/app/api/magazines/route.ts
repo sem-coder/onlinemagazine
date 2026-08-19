@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { actorId, getSessionUser } from "@/lib/auth";
-import { getMagazine, listMagazinesForOwner, saveMagazine, uniqueSlug } from "@/lib/magazines";
-import { getPlan } from "@/lib/plans";
+import { actorId, getSessionUser, workspaceUser } from "@/lib/auth";
+import { getMagazine, listMagazinesForOwner, saveMagazine, uniqueSlug, usedStorageBytes } from "@/lib/magazines";
+import { getPlan, storageLimitBytes } from "@/lib/plans";
 import { blobEnabled } from "@/lib/store";
 import { GUEST_TTL_DAYS, MAGAZINE_ID_PATTERN, MAX_FLIP_PAGES, MAX_PDF_BYTES, type Magazine } from "@/lib/types";
 import { nanoid } from "nanoid";
@@ -18,14 +18,24 @@ function isBlobFileUrl(url: string) {
   }
 }
 
-async function enforceQuota(ownerId: string) {
-  const user = await getSessionUser();
-  const plan = getPlan(user?.plan ?? "free");
+async function enforceQuota(ownerId: string, extraBytes = 0) {
+  const space = await workspaceUser();
+  const plan = getPlan(space?.owner.plan ?? "free");
   const existing = await listMagazinesForOwner(ownerId);
   if (plan.flipbooks !== null && existing.length >= plan.flipbooks) {
     return NextResponse.json(
       {
         error: `Je ${plan.name}-plan staat max. ${plan.flipbooks} flipbooks toe. Upgrade om meer te publiceren.`,
+        upgrade: true,
+      },
+      { status: 402 },
+    );
+  }
+  const used = usedStorageBytes(existing);
+  if (used + extraBytes > storageLimitBytes(plan.storageGb)) {
+    return NextResponse.json(
+      {
+        error: `Je ${plan.name}-plan heeft ${plan.storageGb} GB opslag. Upgrade voor meer ruimte.`,
         upgrade: true,
       },
       { status: 402 },
@@ -46,8 +56,6 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const ownerId = await actorId();
-  const quota = await enforceQuota(ownerId);
-  if (quota) return quota;
   const user = await getSessionUser();
 
   const contentType = request.headers.get("content-type") ?? "";
@@ -61,6 +69,7 @@ export async function POST(request: Request) {
       pageCount?: number;
       pageWidth?: number;
       pageHeight?: number;
+      bytes?: number;
     };
 
     const id = body.id ?? "";
@@ -77,6 +86,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Ongeldig aantal pagina's." }, { status: 400 });
     }
 
+    const bytes = Math.max(0, Number(body.bytes) || 0);
+    const quota = await enforceQuota(ownerId, bytes);
+    if (quota) return quota;
+
     const originalName = String(body.originalName ?? "magazine.pdf");
     const title = String(body.title ?? "").trim();
     const magazine: Magazine = {
@@ -90,11 +103,13 @@ export async function POST(request: Request) {
       createdAt: new Date().toISOString(),
       ownerId,
       views: 0,
+      viewsByDay: {},
       public: true,
       leadForm: false,
       expiresAt: guestExpiry(user),
       pdfUrl: body.pdfUrl,
       coverUrl: body.coverUrl,
+      bytes,
     };
     await saveMagazine({ id, magazine });
     return NextResponse.json({ magazine });
@@ -128,6 +143,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Ongeldig aantal pagina's." }, { status: 400 });
   }
 
+  const quota = await enforceQuota(ownerId, pdf.size);
+  if (quota) return quota;
+
   const pdfBuffer = Buffer.from(await pdf.arrayBuffer());
   if (!pdfBuffer.subarray(0, 5).toString("utf8").startsWith("%PDF")) {
     return NextResponse.json({ error: "Dit lijkt geen geldige PDF." }, { status: 400 });
@@ -145,9 +163,11 @@ export async function POST(request: Request) {
     createdAt: new Date().toISOString(),
     ownerId,
     views: 0,
+    viewsByDay: {},
     public: true,
     leadForm: false,
     expiresAt: guestExpiry(user),
+    bytes: pdf.size,
   };
 
   await saveMagazine({

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { PLANS, type Plan } from "@/lib/plans";
-import { saveUser } from "@/lib/users";
+import { saveUser, uniqueBookshelfSlug } from "@/lib/users";
 import type { PlanId } from "@/lib/types";
 
 export async function POST(request: Request) {
@@ -18,6 +18,9 @@ export async function POST(request: Request) {
   user.plan = plan.id;
   const days = body.interval === "yearly" ? 365 : 30;
   user.planRenewsAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+  if (!user.bookshelfSlug) {
+    user.bookshelfSlug = await uniqueBookshelfSlug(user.name || user.email, user.id);
+  }
   await saveUser(user);
 
   return NextResponse.json({

@@ -20,6 +20,7 @@ export default async function ExampleViewer({ params }: Params) {
     createdAt: new Date().toISOString(),
     ownerId: "demo",
     views: 0,
+    viewsByDay: {},
     public: true,
     leadForm: false,
     expiresAt: null,

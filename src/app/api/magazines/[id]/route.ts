@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { actorId, getSessionUser } from "@/lib/auth";
+import { actorId, workspaceUser } from "@/lib/auth";
 import { deleteMagazine, getMagazine, slugTaken, uniqueSlug, writeMeta } from "@/lib/magazines";
 import { canUse } from "@/lib/plans";
 import { SLUG_PATTERN } from "@/lib/types";
@@ -35,8 +35,8 @@ export async function PATCH(
     public?: boolean;
     leadForm?: boolean;
   };
-  const user = await getSessionUser();
-  const plan = user?.plan ?? "free";
+  const space = await workspaceUser();
+  const plan = space?.owner.plan ?? "free";
 
   if (typeof body.title === "string" && body.title.trim()) {
     magazine.title = body.title.trim();
