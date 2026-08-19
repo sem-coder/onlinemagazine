@@ -33,6 +33,8 @@ export function MagazineViewer({
   const [ready, setReady] = useState(false);
   const [share, setShare] = useState(openShare);
   const [lead, setLead] = useState(false);
+  const [leadError, setLeadError] = useState<string | null>(null);
+  const [leadBusy, setLeadBusy] = useState(false);
   const leadLockRef = useRef(false);
   const [layout, setLayout] = useState({
     pageWidth: magazine.pageWidth || 595,
@@ -124,6 +126,14 @@ export function MagazineViewer({
     }
   }, [magazine.id]);
 
+  useEffect(() => {
+    if (!magazine.leadForm || leadLockRef.current || lead || share || pages.length === 0) return;
+    const total = Math.max(magazine.pageCount, pages.length, 1);
+    const triggerAt = Math.min(3, Math.max(2, Math.ceil(total * 0.1)));
+    if (page + 1 < triggerAt) return;
+    setLead(true);
+  }, [page, pages.length, magazine.leadForm, magazine.pageCount, lead, share]);
+
   function dismissLead() {
     leadLockRef.current = true;
     setLead(false);
@@ -183,11 +193,6 @@ export function MagazineViewer({
               single={layout.single}
               onFlip={(index) => {
                 setPage(index);
-                if (!magazine.leadForm || leadLockRef.current || totalPages < 1) return;
-                if ((index + 1) / totalPages >= 0.1) {
-                  leadLockRef.current = true;
-                  setLead(true);
-                }
               }}
               onReady={(book) => {
                 bookRef.current = book;
@@ -242,12 +247,14 @@ export function MagazineViewer({
       ) : null}
 
       {lead ? (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/50 p-4">
+        <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/50 p-4">
           <form
             className="w-full max-w-sm rounded-2xl bg-white p-5 text-ink"
             onSubmit={(event) => {
               event.preventDefault();
               const form = new FormData(event.currentTarget);
+              setLeadBusy(true);
+              setLeadError(null);
               void fetch("/api/leads", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -256,8 +263,16 @@ export function MagazineViewer({
                   name: form.get("name"),
                   email: form.get("email"),
                 }),
-              });
-              dismissLead();
+              })
+                .then(async (response) => {
+                  const data = (await response.json()) as { error?: string };
+                  if (!response.ok) throw new Error(data.error ?? "Versturen mislukt.");
+                  dismissLead();
+                })
+                .catch((err: unknown) => {
+                  setLeadError(err instanceof Error ? err.message : "Versturen mislukt.");
+                })
+                .finally(() => setLeadBusy(false));
             }}
           >
             <p className="font-semibold">Blijf op de hoogte</p>
@@ -270,8 +285,9 @@ export function MagazineViewer({
               placeholder="E-mail"
               className="mt-2 w-full rounded-md border px-3 py-2 text-sm"
             />
-            <button type="submit" className="mt-4 w-full rounded-md bg-green py-2 text-sm text-white">
-              Verstuur
+            {leadError ? <p className="mt-2 text-sm text-red-700">{leadError}</p> : null}
+            <button type="submit" disabled={leadBusy} className="mt-4 w-full rounded-md bg-green py-2 text-sm text-white disabled:opacity-60">
+              {leadBusy ? "Versturen…" : "Verstuur"}
             </button>
             <button type="button" onClick={dismissLead} className="mt-2 w-full text-sm text-ink/50">
               Nee bedankt
@@ -284,7 +300,7 @@ export function MagazineViewer({
 }
 
 function leadStorageKey(magazineId: string) {
-  return `folio-lead-${magazineId}`;
+  return `folio-lead-v2-${magazineId}`;
 }
 
 function pageLabel(page: number, total: number, single: boolean) {

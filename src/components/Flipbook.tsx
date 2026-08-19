@@ -63,15 +63,16 @@ export function Flipbook({ pages, pageWidth, pageHeight, single = false, onFlip,
       startZIndex: 2,
     });
 
-    const initial = pageElements(pages);
-    loadedCount.current = pages.length;
-    book.loadFromHTML(initial);
     book.on("flip", (event) => {
       onFlipRef.current?.(Number(event.data));
     });
     book.on("init", () => {
+      bookRef.current = book;
       onReadyRef.current?.(book);
     });
+    const initial = pageElements(pages);
+    loadedCount.current = pages.length;
+    book.loadFromHTML(initial);
     bookRef.current = book;
 
     return () => {

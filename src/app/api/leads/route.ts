@@ -30,13 +30,20 @@ export async function POST(request: Request) {
   if (!body.magazineId) {
     return NextResponse.json({ error: "Magazine ontbreekt." }, { status: 400 });
   }
-  const result = await addLead({
-    magazineId: body.magazineId,
-    name: String(body.name ?? ""),
-    email: String(body.email ?? ""),
-  });
-  if ("error" in result) {
-    return NextResponse.json({ error: result.error }, { status: result.status });
+  try {
+    const result = await addLead({
+      magazineId: body.magazineId,
+      name: String(body.name ?? ""),
+      email: String(body.email ?? ""),
+    });
+    if ("error" in result) {
+      return NextResponse.json({ error: result.error }, { status: result.status });
+    }
+    return NextResponse.json({ ok: true, duplicate: result.duplicate });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Versturen mislukt." },
+      { status: 500 },
+    );
   }
-  return NextResponse.json({ ok: true, duplicate: result.duplicate });
 }

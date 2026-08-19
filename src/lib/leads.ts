@@ -1,6 +1,6 @@
 import { nanoid } from "nanoid";
 import { MAGAZINE_ID_PATTERN, type Lead } from "@/lib/types";
-import { getMagazine, listMagazinesForOwner } from "@/lib/magazines";
+import { getMagazineBySlugOrId, listMagazinesForOwner } from "@/lib/magazines";
 import { getObject, putObject } from "@/lib/store";
 
 function leadsPath(magazineId: string) {
@@ -23,7 +23,7 @@ async function writeLeads(magazineId: string, leads: Lead[]) {
 }
 
 export async function addLead(input: { magazineId: string; name: string; email: string }) {
-  const magazine = await getMagazine(input.magazineId);
+  const magazine = await getMagazineBySlugOrId(input.magazineId);
   if (!magazine || !magazine.leadForm) return { error: "Leadformulier staat niet aan.", status: 400 as const };
   const email = input.email.trim().toLowerCase();
   if (!email.includes("@")) return { error: "Vul een e-mailadres in.", status: 400 as const };
