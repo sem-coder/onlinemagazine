@@ -128,11 +128,11 @@ export function MagazineViewer({
 
   useEffect(() => {
     if (!magazine.leadForm || leadLockRef.current || lead || share || pages.length === 0) return;
-    const total = Math.max(magazine.pageCount, pages.length, 1);
-    const triggerAt = Math.min(3, Math.max(2, Math.ceil(total * 0.1)));
+    const total = Math.max(progress.total, magazine.pageCount, pages.length, 1);
+    const triggerAt = Math.max(2, Math.ceil(total * 0.1));
     if (page + 1 < triggerAt) return;
     setLead(true);
-  }, [page, pages.length, magazine.leadForm, magazine.pageCount, lead, share]);
+  }, [page, pages.length, progress.total, magazine.leadForm, magazine.pageCount, lead, share]);
 
   function dismissLead() {
     leadLockRef.current = true;
@@ -300,7 +300,7 @@ export function MagazineViewer({
 }
 
 function leadStorageKey(magazineId: string) {
-  return `folio-lead-v2-${magazineId}`;
+  return `folio-lead-v3-${magazineId}`;
 }
 
 function pageLabel(page: number, total: number, single: boolean) {
