@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { isAdmin } from "@/lib/admin-access";
 import type { User } from "@/lib/types";
 
 export function Logo({ dark = false }: { dark?: boolean }) {
@@ -28,9 +29,16 @@ export function SiteHeader({ user }: { user: User | null }) {
         </nav>
         <div className="flex items-center gap-3 text-sm">
           {user ? (
-            <Link href="/dashboard" className="rounded-full bg-green px-4 py-2 font-medium text-white">
-              Dashboard
-            </Link>
+            <>
+              {isAdmin(user) ? (
+                <Link href="/admin" className="hidden text-ink/70 sm:block">
+                  Beheer
+                </Link>
+              ) : null}
+              <Link href="/dashboard" className="rounded-full bg-green px-4 py-2 font-medium text-white">
+                Dashboard
+              </Link>
+            </>
           ) : (
             <>
               <Link href="/login" className="hidden text-ink/70 sm:block">

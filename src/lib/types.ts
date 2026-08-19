@@ -1,4 +1,5 @@
 export type PlanId = "free" | "standard" | "professional" | "premium";
+export type UserRole = "admin" | "user";
 
 export type Magazine = {
   id: string;
@@ -41,7 +42,9 @@ export type User = {
   passwordHash: string;
   plan: PlanId;
   planRenewsAt: string | null;
+  role: UserRole;
   createdAt: string;
+  lastLoginAt: string | null;
   bookshelfSlug: string;
   teamMembers: TeamMember[];
 };

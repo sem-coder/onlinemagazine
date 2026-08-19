@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { getObject, putObject } from "@/lib/store";
-import { slugify } from "@/lib/magazines";
+import { deleteMagazine, listMagazinesForOwner, slugify } from "@/lib/magazines";
 import type { TeamMember, User } from "@/lib/types";
 
 function usersPath() {
@@ -17,7 +17,9 @@ function normalizeUser(raw: Partial<User> & { id: string }): User {
     passwordHash: raw.passwordHash || "",
     plan: raw.plan || "free",
     planRenewsAt: raw.planRenewsAt ?? null,
+    role: raw.role === "admin" ? "admin" : "user",
     createdAt: raw.createdAt || new Date().toISOString(),
+    lastLoginAt: raw.lastLoginAt ?? null,
     bookshelfSlug: raw.bookshelfSlug || slugify(raw.name || raw.email || raw.id),
     teamMembers: raw.teamMembers ?? [],
   };
@@ -121,4 +123,26 @@ export async function saveUser(user: User) {
   if (index === -1) users.push(normalized);
   else users[index] = normalized;
   await writeAll(users);
+}
+
+export async function deleteUser(id: string) {
+  const users = await readAll();
+  const target = users.find((user) => user.id === id);
+  if (!target) return false;
+
+  const magazines = await listMagazinesForOwner(id);
+  for (const magazine of magazines) {
+    await deleteMagazine(magazine.id, id);
+  }
+
+  const next = users
+    .filter((user) => user.id !== id)
+    .map((user) => ({
+      ...user,
+      teamMembers: user.teamMembers.filter(
+        (member) => member.userId !== id && member.email !== target.email,
+      ),
+    }));
+  await writeAll(next);
+  return true;
 }

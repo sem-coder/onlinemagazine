@@ -1,33 +1,22 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Logo } from "@/components/SiteChrome";
-import { isAdmin } from "@/lib/admin-access";
 import type { User } from "@/lib/types";
 
 const LINKS = [
-  ["/dashboard", "Overzicht"],
-  ["/dashboard/stats", "Statistieken"],
-  ["/dashboard/leads", "Leads"],
-  ["/dashboard/team", "Team"],
-  ["/dashboard/boekenkast", "Boekenkast"],
+  ["/admin", "Overzicht"],
+  ["/admin/gebruikers", "Gebruikers"],
 ];
 
-export function DashboardChrome({
-  user,
-  owner,
-  isMember,
-  children,
-}: {
-  user: User;
-  owner: User;
-  isMember: boolean;
-  children: ReactNode;
-}) {
+export function AdminChrome({ user, children }: { user: User; children: ReactNode }) {
   return (
     <div className="min-h-dvh bg-paper">
       <header className="border-b border-black/5 bg-white">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5">
-          <Logo />
+          <div className="flex items-center gap-3">
+            <Logo />
+            <span className="rounded-full bg-green/10 px-2.5 py-0.5 text-xs font-medium text-green">Admin</span>
+          </div>
           <nav className="hidden items-center gap-4 text-sm text-ink/70 md:flex">
             {LINKS.map(([href, label]) => (
               <Link key={href} href={href}>
@@ -36,13 +25,9 @@ export function DashboardChrome({
             ))}
           </nav>
           <div className="flex items-center gap-3 text-sm">
-            {isAdmin(user) ? (
-              <Link href="/admin" className="hidden text-ink/70 sm:block">
-                Beheer
-              </Link>
-            ) : null}
-            <Link href="/dashboard/upgrade" className="rounded-full bg-green px-3 py-1.5 text-white">
-              Upgrade
+            <span className="hidden text-ink/55 sm:block">{user.email}</span>
+            <Link href="/dashboard" className="text-ink/70">
+              Dashboard
             </Link>
             <form action="/api/auth/logout" method="post">
               <button className="text-ink/60">Uitloggen</button>
@@ -55,18 +40,8 @@ export function DashboardChrome({
               {label}
             </Link>
           ))}
-          {isAdmin(user) ? (
-            <Link href="/admin" className="whitespace-nowrap">
-              Beheer
-            </Link>
-          ) : null}
         </div>
       </header>
-      {isMember ? (
-        <p className="border-b border-black/5 bg-white px-5 py-2 text-center text-sm text-ink/60">
-          Je werkt in het account van {owner.name}.
-        </p>
-      ) : null}
       <main className="mx-auto max-w-6xl px-5 py-10">{children}</main>
     </div>
   );
