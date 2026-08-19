@@ -6,7 +6,7 @@ import { PageFlip } from "page-flip";
 import { useEffect, useRef, useState } from "react";
 import { Flipbook } from "@/components/Flipbook";
 import { SharePanel } from "@/components/SharePanel";
-import { fitPdfInStage, readPdfPageSize, renderPdf, revokePages } from "@/lib/pdf";
+import { fitPdfInStage, renderPdf, revokePages } from "@/lib/pdf";
 import type { Magazine } from "@/lib/types";
 
 type Props = {
@@ -49,23 +49,26 @@ export function MagazineViewer({
         const response = await fetch(magazine.pdfUrl || `/api/magazines/${magazine.id}/pdf`);
         if (!response.ok) throw new Error("PDF kon niet worden geladen.");
         const bytes = await response.arrayBuffer();
-        const real = await readPdfPageSize(bytes);
         if (cancelled) return;
 
         await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
-        const stage = stageRef.current?.getBoundingClientRect();
-        const stageW = stage && stage.width > 80 ? stage.width : window.innerWidth;
-        const stageH = stage && stage.height > 200 ? stage.height : window.innerHeight - 72;
-        const fitted = fitPdfInStage(real.pageWidth, real.pageHeight, stageW - 16, stageH - 16);
-        setLayout(fitted);
-
-        const rendered = await renderPdf(bytes, fitted.pageWidth, fitted.pageHeight, (value) => {
-          if (!cancelled) setProgress(value);
-        });
+        const rendered = await renderPdf(
+          bytes,
+          (pageW, pageH) => {
+            const stage = stageRef.current?.getBoundingClientRect();
+            const stageW = stage && stage.width > 80 ? stage.width : window.innerWidth;
+            const stageH = stage && stage.height > 200 ? stage.height : window.innerHeight - 72;
+            return fitPdfInStage(pageW, pageH, stageW - 16, stageH - 16);
+          },
+          (value) => {
+            if (!cancelled) setProgress(value);
+          },
+        );
         if (cancelled) {
           revokePages(rendered.pages);
           return;
         }
+        setLayout(rendered.fitted);
         urls = rendered.pages;
         setPages(rendered.pages);
       } catch (err) {

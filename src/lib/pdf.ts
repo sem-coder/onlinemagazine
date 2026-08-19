@@ -63,7 +63,9 @@ function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number) 
 
 async function openPdf(file: File | ArrayBuffer) {
   const pdfjs = await loadPdfjs();
-  const data = file instanceof File ? await file.arrayBuffer() : file;
+  const raw = file instanceof File ? await file.arrayBuffer() : file;
+  // pdf.js transfers the buffer to its worker, which detaches it.
+  const data = raw.slice(0);
   return pdfjs.getDocument({
     data,
     wasmUrl: "/pdfjs/wasm/",
@@ -126,38 +128,28 @@ export async function inspectPdf(file: File) {
   };
 }
 
-export async function readPdfPageSize(file: File | ArrayBuffer) {
-  const pdf = await openPdf(file);
-  const first = await pdf.getPage(1);
-  const base = first.getViewport({ scale: 1 });
-  return { pageCount: pdf.numPages, pageWidth: base.width, pageHeight: base.height };
-}
-
 export async function renderPdf(
   file: File | ArrayBuffer,
-  cssPageWidth: number,
-  cssPageHeight: number,
+  fit: (pageW: number, pageH: number) => FittedPage,
   onProgress?: (progress: PdfProgress) => void,
-): Promise<RenderedPdf> {
+): Promise<RenderedPdf & { fitted: FittedPage }> {
   const pdf = await openPdf(file);
 
   if (pdf.numPages > MAX_PAGES) {
     throw new Error(`Dit PDF heeft ${pdf.numPages} pagina's. Maximaal ${MAX_PAGES} voor nu.`);
   }
 
+  const first = await pdf.getPage(1);
+  const base = first.getViewport({ scale: 1 });
+  const fitted = fit(base.width, base.height);
+
   const pages: string[] = [];
-  let pageWidth = cssPageWidth;
-  let pageHeight = cssPageHeight;
   let cover: Blob | null = null;
 
   for (let index = 1; index <= pdf.numPages; index += 1) {
-    const page = await pdf.getPage(index);
-    const rendered = await renderPageAtSize(page, cssPageWidth, cssPageHeight);
-    if (index === 1) {
-      pageWidth = rendered.width;
-      pageHeight = rendered.height;
-      cover = rendered.blob;
-    }
+    const page = index === 1 ? first : await pdf.getPage(index);
+    const rendered = await renderPageAtSize(page, fitted.pageWidth, fitted.pageHeight);
+    if (index === 1) cover = rendered.blob;
     pages.push(URL.createObjectURL(rendered.blob));
     onProgress?.({ current: index, total: pdf.numPages });
   }
@@ -166,10 +158,11 @@ export async function renderPdf(
 
   return {
     pageCount: pdf.numPages,
-    pageWidth,
-    pageHeight,
+    pageWidth: base.width,
+    pageHeight: base.height,
     pages,
     cover,
+    fitted,
   };
 }
 
