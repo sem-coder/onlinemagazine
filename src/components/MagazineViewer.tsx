@@ -54,11 +54,12 @@ export function MagazineViewer({
         await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
         const rendered = await renderPdf(
           bytes,
-          (pageW, pageH) => {
+          (pageW, pageH, portraitBook) => {
             const stage = stageRef.current?.getBoundingClientRect();
             const stageW = stage && stage.width > 80 ? stage.width : window.innerWidth;
             const stageH = stage && stage.height > 200 ? stage.height : window.innerHeight - 72;
-            return fitPdfInStage(pageW, pageH, stageW - 16, stageH - 16);
+            const twoPage = portraitBook && stageW >= 720;
+            return fitPdfInStage(pageW, pageH, stageW - 16, stageH - 16, twoPage);
           },
           (value) => {
             if (!cancelled) setProgress(value);
@@ -87,7 +88,8 @@ export function MagazineViewer({
     const stage = stageRef.current?.getBoundingClientRect();
     const stageW = stage && stage.width > 80 ? stage.width : window.innerWidth;
     const stageH = stage && stage.height > 200 ? stage.height : window.innerHeight - 72;
-    setLayout(fitPdfInStage(magazine.pageWidth, magazine.pageHeight, stageW - 16, stageH - 16));
+    const twoPage = magazine.pageWidth < magazine.pageHeight && stageW >= 720;
+    setLayout(fitPdfInStage(magazine.pageWidth, magazine.pageHeight, stageW - 16, stageH - 16, twoPage));
   }, [pagesFromImages, magazine.pageWidth, magazine.pageHeight]);
 
   useEffect(() => {
@@ -116,7 +118,7 @@ export function MagazineViewer({
           </Link>
           <div className="text-center">
             <p className="text-sm font-medium">{magazine.title}</p>
-            <p className="text-xs text-paper/50">{magazine.pageCount} pagina’s</p>
+            <p className="text-xs text-paper/50">{(pages.length || magazine.pageCount)} pagina’s</p>
           </div>
           <button
             type="button"
@@ -137,6 +139,7 @@ export function MagazineViewer({
               pages={pages}
               pageWidth={layout.pageWidth}
               pageHeight={layout.pageHeight}
+              single={layout.single}
               onFlip={(index) => {
                 setPage(index);
                 if (magazine.leadForm && index >= 2 && !leadDone) setLead(true);
@@ -160,11 +163,11 @@ export function MagazineViewer({
             ‹
           </ToolButton>
           <span className="min-w-16 px-2 text-center text-paper/80">
-            {page + 1} / {magazine.pageCount}
+            {pageLabel(page, pages.length || magazine.pageCount, layout.single)}
           </span>
           <ToolButton
             label="Volgende"
-            disabled={!ready || page >= magazine.pageCount - 1}
+            disabled={!ready || page >= (pages.length || magazine.pageCount) - 1}
             onClick={() => bookRef.current?.flipNext()}
           >
             ›
@@ -236,6 +239,11 @@ export function MagazineViewer({
       ) : null}
     </div>
   );
+}
+
+function pageLabel(page: number, total: number, single: boolean) {
+  if (single || page === 0 || page >= total - 1) return `${page + 1} / ${total}`;
+  return `${page + 1}–${Math.min(page + 2, total)} / ${total}`;
 }
 
 function ToolButton({

@@ -3,7 +3,7 @@ import { actorId, getSessionUser } from "@/lib/auth";
 import { getMagazine, listMagazinesForOwner, saveMagazine, uniqueSlug } from "@/lib/magazines";
 import { getPlan } from "@/lib/plans";
 import { blobEnabled } from "@/lib/store";
-import { GUEST_TTL_DAYS, MAGAZINE_ID_PATTERN, MAX_PAGES, MAX_PDF_BYTES, type Magazine } from "@/lib/types";
+import { GUEST_TTL_DAYS, MAGAZINE_ID_PATTERN, MAX_FLIP_PAGES, MAX_PDF_BYTES, type Magazine } from "@/lib/types";
 import { nanoid } from "nanoid";
 
 export const runtime = "nodejs";
@@ -73,7 +73,7 @@ export async function POST(request: Request) {
     if (!body.pdfUrl || !isBlobFileUrl(body.pdfUrl) || !body.coverUrl || !isBlobFileUrl(body.coverUrl)) {
       return NextResponse.json({ error: "PDF-upload is onvolledig." }, { status: 400 });
     }
-    if (!Number.isInteger(body.pageCount) || !body.pageCount || body.pageCount < 1 || body.pageCount > MAX_PAGES) {
+    if (!Number.isInteger(body.pageCount) || !body.pageCount || body.pageCount < 1 || body.pageCount > MAX_FLIP_PAGES) {
       return NextResponse.json({ error: "Ongeldig aantal pagina's." }, { status: 400 });
     }
 
@@ -124,7 +124,7 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
-  if (!Number.isInteger(pageCount) || pageCount < 1 || pageCount > MAX_PAGES) {
+  if (!Number.isInteger(pageCount) || pageCount < 1 || pageCount > MAX_FLIP_PAGES) {
     return NextResponse.json({ error: "Ongeldig aantal pagina's." }, { status: 400 });
   }
 

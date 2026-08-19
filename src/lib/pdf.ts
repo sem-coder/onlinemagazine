@@ -1,5 +1,5 @@
-import type { PDFPageProxy } from "pdfjs-dist";
-import { MAX_PAGES } from "@/lib/types";
+import type { PDFDocumentProxy, PDFPageProxy } from "pdfjs-dist";
+import { MAX_FLIP_PAGES, MAX_PAGES } from "@/lib/types";
 
 export type PdfProgress = {
   current: number;
@@ -48,6 +48,39 @@ async function loadPdfjs() {
   return pdfjs;
 }
 
+type PageSize = {
+  width: number;
+  height: number;
+};
+
+function leafSize(sizes: PageSize[]): PageSize {
+  const portrait = sizes.find((size) => size.width < size.height);
+  return portrait ?? sizes[0] ?? { width: 595, height: 842 };
+}
+
+function isSpreadPage(size: PageSize, leaf: PageSize) {
+  if (size.width <= size.height) return false;
+  const widthRatio = size.width / leaf.width;
+  const heightRatio = size.height / leaf.height;
+  return widthRatio > 1.6 && widthRatio < 2.4 && heightRatio > 0.85 && heightRatio < 1.15;
+}
+
+function shouldSplitSpreads(sizes: PageSize[]) {
+  const leaf = leafSize(sizes);
+  if (leaf.width >= leaf.height) return false;
+  return sizes.some((size) => isSpreadPage(size, leaf));
+}
+
+async function readPageSizes(pdf: PDFDocumentProxy): Promise<PageSize[]> {
+  const sizes: PageSize[] = [];
+  for (let index = 1; index <= pdf.numPages; index += 1) {
+    const page = await pdf.getPage(index);
+    const viewport = page.getViewport({ scale: 1 });
+    sizes.push({ width: viewport.width, height: viewport.height });
+  }
+  return sizes;
+}
+
 function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number) {
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
@@ -76,7 +109,7 @@ async function openPdf(file: File | ArrayBuffer) {
   }).promise;
 }
 
-async function renderPageAtSize(page: PDFPageProxy, cssWidth: number, cssHeight: number) {
+async function renderPageToCanvas(page: PDFPageProxy, cssWidth: number, cssHeight: number) {
   const base = page.getViewport({ scale: 1 });
   const dpr = Math.min(typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1, 2);
   const scale = Math.min((cssWidth * dpr) / base.width, (cssHeight * dpr) / base.height);
@@ -89,10 +122,38 @@ async function renderPageAtSize(page: PDFPageProxy, cssWidth: number, cssHeight:
   canvasContext.fillStyle = "#ffffff";
   canvasContext.fillRect(0, 0, canvas.width, canvas.height);
   await page.render({ canvas, canvasContext, viewport }).promise;
+  return { canvas, width: base.width, height: base.height };
+}
+
+async function canvasSliceBlob(source: HTMLCanvasElement, sx: number, sw: number) {
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.floor(sw));
+  canvas.height = source.height;
+  const context = canvas.getContext("2d", { alpha: false });
+  if (!context) throw new Error("Canvas niet beschikbaar");
+  context.drawImage(source, sx, 0, canvas.width, source.height, 0, 0, canvas.width, source.height);
   const blob = await canvasToBlob(canvas, "image/jpeg", 0.92);
   canvas.width = 0;
   canvas.height = 0;
-  return { blob, width: base.width, height: base.height };
+  return blob;
+}
+
+async function renderPageAtSize(page: PDFPageProxy, cssWidth: number, cssHeight: number) {
+  const rendered = await renderPageToCanvas(page, cssWidth, cssHeight);
+  const blob = await canvasToBlob(rendered.canvas, "image/jpeg", 0.92);
+  rendered.canvas.width = 0;
+  rendered.canvas.height = 0;
+  return { blob, width: rendered.width, height: rendered.height };
+}
+
+async function renderSpreadHalves(page: PDFPageProxy, cssWidth: number, cssHeight: number) {
+  const rendered = await renderPageToCanvas(page, cssWidth * 2, cssHeight);
+  const half = Math.floor(rendered.canvas.width / 2);
+  const left = await canvasSliceBlob(rendered.canvas, 0, half);
+  const right = await canvasSliceBlob(rendered.canvas, half, rendered.canvas.width - half);
+  rendered.canvas.width = 0;
+  rendered.canvas.height = 0;
+  return [left, right] as const;
 }
 
 export function fitPdfInStage(
@@ -100,15 +161,25 @@ export function fitPdfInStage(
   pageH: number,
   stageW: number,
   stageH: number,
+  twoPage = false,
 ): FittedPage {
   const width = Math.max(pageW, 1);
   const height = Math.max(pageH, 1);
-  const scale = Math.min(stageW / width, stageH / height);
+  const scale = Math.min(stageW / (width * (twoPage ? 2 : 1)), stageH / height);
   return {
     pageWidth: Math.max(1, Math.round(width * scale)),
     pageHeight: Math.max(1, Math.round(height * scale)),
-    single: true,
+    single: !twoPage,
   };
+}
+
+function planPdfPages(sizes: PageSize[]) {
+  const split = shouldSplitSpreads(sizes);
+  const leaf = split ? leafSize(sizes) : sizes[0];
+  const pageCount = split
+    ? sizes.reduce((sum, size) => sum + (isSpreadPage(size, leaf) ? 2 : 1), 0)
+    : sizes.length;
+  return { split, leaf, pageCount, portraitBook: leaf.width < leaf.height };
 }
 
 export async function inspectPdf(file: File) {
@@ -116,21 +187,25 @@ export async function inspectPdf(file: File) {
   if (pdf.numPages > MAX_PAGES) {
     throw new Error(`Dit PDF heeft ${pdf.numPages} pagina's. Maximaal ${MAX_PAGES} voor nu.`);
   }
+  const sizes = await readPageSizes(pdf);
+  const plan = planPdfPages(sizes);
+  if (plan.pageCount > MAX_FLIP_PAGES) {
+    throw new Error(`Dit PDF wordt ${plan.pageCount} bladzijden. Maximaal ${MAX_FLIP_PAGES} voor nu.`);
+  }
   const first = await pdf.getPage(1);
-  const base = first.getViewport({ scale: 1 });
-  const coverScale = Math.min(480 / base.width, 1);
-  const cover = await renderPageAtSize(first, base.width * coverScale, base.height * coverScale);
+  const coverScale = Math.min(480 / plan.leaf.width, 1);
+  const cover = await renderPageAtSize(first, plan.leaf.width * coverScale, plan.leaf.height * coverScale);
   return {
-    pageCount: pdf.numPages,
-    pageWidth: base.width,
-    pageHeight: base.height,
+    pageCount: plan.pageCount,
+    pageWidth: plan.leaf.width,
+    pageHeight: plan.leaf.height,
     cover: cover.blob,
   };
 }
 
 export async function renderPdf(
   file: File | ArrayBuffer,
-  fit: (pageW: number, pageH: number) => FittedPage,
+  fit: (pageW: number, pageH: number, portraitBook: boolean) => FittedPage,
   onProgress?: (progress: PdfProgress) => void,
 ): Promise<RenderedPdf & { fitted: FittedPage }> {
   const pdf = await openPdf(file);
@@ -139,27 +214,43 @@ export async function renderPdf(
     throw new Error(`Dit PDF heeft ${pdf.numPages} pagina's. Maximaal ${MAX_PAGES} voor nu.`);
   }
 
-  const first = await pdf.getPage(1);
-  const base = first.getViewport({ scale: 1 });
-  const fitted = fit(base.width, base.height);
+  const sizes = await readPageSizes(pdf);
+  const plan = planPdfPages(sizes);
+  if (plan.pageCount > MAX_FLIP_PAGES) {
+    throw new Error(`Dit PDF wordt ${plan.pageCount} bladzijden. Maximaal ${MAX_FLIP_PAGES} voor nu.`);
+  }
+  const fitted = fit(plan.leaf.width, plan.leaf.height, plan.portraitBook);
 
   const pages: string[] = [];
   let cover: Blob | null = null;
+  let done = 0;
 
   for (let index = 1; index <= pdf.numPages; index += 1) {
-    const page = index === 1 ? first : await pdf.getPage(index);
-    const rendered = await renderPageAtSize(page, fitted.pageWidth, fitted.pageHeight);
-    if (index === 1) cover = rendered.blob;
-    pages.push(URL.createObjectURL(rendered.blob));
-    onProgress?.({ current: index, total: pdf.numPages });
+    const page = await pdf.getPage(index);
+    const size = sizes[index - 1];
+    if (plan.split && size && isSpreadPage(size, plan.leaf)) {
+      const halves = await renderSpreadHalves(page, fitted.pageWidth, fitted.pageHeight);
+      for (const blob of halves) {
+        if (!cover) cover = blob;
+        pages.push(URL.createObjectURL(blob));
+        done += 1;
+        onProgress?.({ current: done, total: plan.pageCount });
+      }
+    } else {
+      const rendered = await renderPageAtSize(page, fitted.pageWidth, fitted.pageHeight);
+      if (!cover) cover = rendered.blob;
+      pages.push(URL.createObjectURL(rendered.blob));
+      done += 1;
+      onProgress?.({ current: done, total: plan.pageCount });
+    }
   }
 
   if (!cover) throw new Error("PDF heeft geen pagina's");
 
   return {
-    pageCount: pdf.numPages,
-    pageWidth: base.width,
-    pageHeight: base.height,
+    pageCount: pages.length,
+    pageWidth: plan.leaf.width,
+    pageHeight: plan.leaf.height,
     pages,
     cover,
     fitted,

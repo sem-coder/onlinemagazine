@@ -32,4 +32,5 @@ export const MAGAZINE_ID_PATTERN = /^[A-Za-z0-9_-]{8,32}$/;
 export const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const MAX_PDF_BYTES = 40 * 1024 * 1024;
 export const MAX_PAGES = 80;
+export const MAX_FLIP_PAGES = 160;
 export const GUEST_TTL_DAYS = 7;

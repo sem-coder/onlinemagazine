@@ -7,11 +7,12 @@ type Props = {
   pages: string[];
   pageWidth: number;
   pageHeight: number;
+  single?: boolean;
   onFlip?: (page: number) => void;
   onReady?: (book: PageFlip) => void;
 };
 
-export function Flipbook({ pages, pageWidth, pageHeight, onFlip, onReady }: Props) {
+export function Flipbook({ pages, pageWidth, pageHeight, single = false, onFlip, onReady }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const onFlipRef = useRef(onFlip);
   const onReadyRef = useRef(onReady);
@@ -47,10 +48,10 @@ export function Flipbook({ pages, pageWidth, pageHeight, onFlip, onReady }: Prop
       size: "fixed",
       drawShadow: true,
       flippingTime: 750,
-      usePortrait: true,
+      usePortrait: single,
       autoSize: false,
       maxShadowOpacity: 0.4,
-      showCover: false,
+      showCover: !single,
       mobileScrollSupport: true,
       showPageCorners: true,
       disableFlipByClick: false,
@@ -68,9 +69,9 @@ export function Flipbook({ pages, pageWidth, pageHeight, onFlip, onReady }: Prop
     return () => {
       book.destroy();
     };
-  }, [pages, pageWidth, pageHeight]);
+  }, [pages, pageWidth, pageHeight, single]);
 
-  const bookW = pageWidth;
+  const bookW = single ? pageWidth : pageWidth * 2;
 
   return (
     <div
