@@ -32,8 +32,8 @@ export const PLANS: Plan[] = [
   {
     id: "standard",
     name: "Standard",
-    monthly: 9,
-    yearly: 87,
+    monthly: 3,
+    yearly: 29,
     blurb: "Voor winkels en merken die professioneel willen delen.",
     flipbooks: null,
     storageGb: 10,
@@ -49,8 +49,8 @@ export const PLANS: Plan[] = [
   {
     id: "professional",
     name: "Professional",
-    monthly: 19,
-    yearly: 183,
+    monthly: 5,
+    yearly: 48,
     blurb: "Meet wat lezers doen en vang leads vanuit je catalogus.",
     flipbooks: null,
     storageGb: 20,
@@ -65,8 +65,8 @@ export const PLANS: Plan[] = [
   {
     id: "premium",
     name: "Premium",
-    monthly: 39,
-    yearly: 375,
+    monthly: 9,
+    yearly: 86,
     blurb: "White-label voor bureaus en grote catalogs.",
     flipbooks: null,
     storageGb: 40,
