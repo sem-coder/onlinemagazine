@@ -129,10 +129,7 @@ export function MagazineViewer({
     const settings = leadFormFields(magazine);
     if (!settings.leadForm || lead || share) return;
     try {
-      if (
-        localStorage.getItem(leadDoneKey(magazine.id)) === "done" ||
-        sessionStorage.getItem(leadSkipKey(magazine.id)) === "skip"
-      ) {
+      if (localStorage.getItem(leadDoneKey(magazine.id)) === "done") {
         leadLockRef.current = true;
       }
     } catch {
@@ -145,12 +142,12 @@ export function MagazineViewer({
     setLead(true);
   }, [page, pages.length, progress.total, magazine.id, magazine.leadForm, magazine.leadTriggerPercent, magazine.pageCount, lead, share]);
 
-  function dismissLead(persist: "done" | "skip" = "skip") {
+  function dismissLead(submitted = false) {
     leadLockRef.current = true;
     setLead(false);
+    if (!submitted) return;
     try {
-      if (persist === "done") localStorage.setItem(leadDoneKey(magazine.id), "done");
-      else sessionStorage.setItem(leadSkipKey(magazine.id), "skip");
+      localStorage.setItem(leadDoneKey(magazine.id), "done");
     } catch {
       /* ignore */
     }
@@ -280,7 +277,7 @@ export function MagazineViewer({
                 .then(async (response) => {
                   const data = (await response.json()) as { error?: string };
                   if (!response.ok) throw new Error(data.error ?? "Versturen mislukt.");
-                  dismissLead("done");
+                  dismissLead(true);
                 })
                 .catch((err: unknown) => {
                   setLeadError(err instanceof Error ? err.message : "Versturen mislukt.");
@@ -302,7 +299,7 @@ export function MagazineViewer({
             <button type="submit" disabled={leadBusy} className="mt-4 w-full rounded-md bg-green py-2 text-sm text-white disabled:opacity-60">
               {leadBusy ? "Versturen…" : leadCopy.leadButton}
             </button>
-            <button type="button" onClick={() => dismissLead("skip")} className="mt-2 w-full text-sm text-ink/50">
+            <button type="button" onClick={() => dismissLead()} className="mt-2 w-full text-sm text-ink/50">
               {leadCopy.leadSkip}
             </button>
           </form>
@@ -314,10 +311,6 @@ export function MagazineViewer({
 
 function leadDoneKey(magazineId: string) {
   return `folio-lead-v5-${magazineId}`;
-}
-
-function leadSkipKey(magazineId: string) {
-  return `folio-lead-skip-v5-${magazineId}`;
 }
 
 function pageLabel(page: number, total: number, single: boolean) {
