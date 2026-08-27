@@ -27,6 +27,7 @@ export function MagazineViewer({
 }: Props) {
   const bookRef = useRef<PageFlip | null>(null);
   const stageRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const [pages, setPages] = useState<string[]>(pagesFromImages ?? []);
   const [page, setPage] = useState(0);
   const [progress, setProgress] = useState({ current: 0, total: magazine.pageCount });
@@ -36,6 +37,7 @@ export function MagazineViewer({
   const [lead, setLead] = useState(false);
   const [leadError, setLeadError] = useState<string | null>(null);
   const [leadBusy, setLeadBusy] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
   const leadLockRef = useRef(false);
   const [layout, setLayout] = useState({
     pageWidth: magazine.pageWidth || 595,
@@ -128,6 +130,18 @@ export function MagazineViewer({
   }, []);
 
   useEffect(() => {
+    function sync() {
+      setFullscreen(isFullscreen());
+    }
+    document.addEventListener("fullscreenchange", sync);
+    document.addEventListener("webkitfullscreenchange", sync);
+    return () => {
+      document.removeEventListener("fullscreenchange", sync);
+      document.removeEventListener("webkitfullscreenchange", sync);
+    };
+  }, []);
+
+  useEffect(() => {
     const settings = leadFormFields(magazine);
     if (!settings.leadForm || lead || share) return;
     try {
@@ -155,6 +169,20 @@ export function MagazineViewer({
     }
   }
 
+  async function toggleFullscreen() {
+    if (isFullscreen()) {
+      await exitFullscreen();
+      return;
+    }
+    try {
+      await requestFullscreen(rootRef.current ?? document.documentElement);
+      if (isFullscreen()) return;
+    } catch {
+      /* iframe zonder toestemming, of iOS */
+    }
+    window.open(`/v/${magazine.slug || magazine.id}`, "_blank", "noopener,noreferrer");
+  }
+
   const leadCopy = leadFormFields(magazine);
   const embed = mode === "embed";
   const totalPages = Math.max(progress.total, pages.length, magazine.pageCount);
@@ -162,7 +190,10 @@ export function MagazineViewer({
   const loadPercent = totalPages ? Math.min(100, Math.round((progress.current / totalPages) * 100)) : 0;
 
   return (
-    <div className={`relative flex flex-col overflow-hidden bg-viewer text-paper ${embed ? "h-full w-full" : "h-dvh"}`}>
+    <div
+      ref={rootRef}
+      className={`magazine-viewer relative flex flex-col overflow-hidden bg-viewer text-paper ${embed ? "h-full w-full" : "h-dvh"}`}
+    >
       {!embed ? (
         <header className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center justify-between px-5 py-3">
           <Link href="/" className="pointer-events-auto text-sm text-paper/70">
@@ -180,6 +211,17 @@ export function MagazineViewer({
             Deel / embed
           </button>
         </header>
+      ) : null}
+
+      {embed ? (
+        <button
+          type="button"
+          onClick={() => void toggleFullscreen()}
+          className="absolute right-3 top-3 z-30 flex items-center gap-1.5 rounded-full border border-white/10 bg-black/55 px-3 py-1.5 text-xs text-paper backdrop-blur"
+        >
+          <FullscreenIcon exit={fullscreen} />
+          {fullscreen ? "Sluiten" : "Volledig scherm"}
+        </button>
       ) : null}
 
       {loading ? (
@@ -332,6 +374,59 @@ export function MagazineViewer({
 
 function leadDoneKey(magazineId: string) {
   return `folio-lead-v5-${magazineId}`;
+}
+
+type FsDoc = Document & {
+  webkitFullscreenElement?: Element | null;
+  webkitExitFullscreen?: () => Promise<void> | void;
+};
+
+type FsEl = HTMLElement & {
+  webkitRequestFullscreen?: () => Promise<void> | void;
+};
+
+function isFullscreen() {
+  const doc = document as FsDoc;
+  return Boolean(doc.fullscreenElement || doc.webkitFullscreenElement);
+}
+
+async function requestFullscreen(el: HTMLElement) {
+  const node = el as FsEl;
+  if (node.requestFullscreen) {
+    await node.requestFullscreen();
+    return;
+  }
+  if (node.webkitRequestFullscreen) {
+    await node.webkitRequestFullscreen();
+    return;
+  }
+  throw new Error("Fullscreen wordt niet ondersteund.");
+}
+
+async function exitFullscreen() {
+  const doc = document as FsDoc;
+  if (doc.exitFullscreen) {
+    await doc.exitFullscreen();
+    return;
+  }
+  if (doc.webkitExitFullscreen) {
+    await doc.webkitExitFullscreen();
+  }
+}
+
+function FullscreenIcon({ exit }: { exit: boolean }) {
+  if (exit) {
+    return (
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
+        <path d="M4 1H1v3M8 1h3v3M4 11H1V8M8 11h3V8" stroke="currentColor" strokeWidth="1.4" />
+      </svg>
+    );
+  }
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
+      <path d="M1 4V1h3M11 4V1H8M1 8v3h3M11 8v3H8" stroke="currentColor" strokeWidth="1.4" />
+    </svg>
+  );
 }
 
 function pageLabel(page: number, total: number, single: boolean) {

@@ -39,6 +39,13 @@ html.embed-frame body {
   filter: drop-shadow(0 24px 40px rgba(0, 0, 0, 0.4));
 }
 
+.magazine-viewer:fullscreen,
+.magazine-viewer:-webkit-full-screen {
+  width: 100vw;
+  height: 100vh;
+  background: var(--viewer);
+}
+
 .flipbook-root,
 .flipbook-host {
   position: relative;

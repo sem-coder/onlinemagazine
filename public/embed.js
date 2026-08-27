@@ -12,6 +12,8 @@
     iframe.src = origin + "/embed/" + encodeURIComponent(id);
     iframe.title = target.getAttribute("data-title") || "Magazine";
     iframe.allowFullscreen = true;
+    iframe.setAttribute("allow", "fullscreen");
+    iframe.setAttribute("webkitallowfullscreen", "true");
     iframe.style.cssText =
       "position:absolute;top:0;left:0;width:100% !important;height:100% !important;max-height:none !important;border:0;background:#1b1d1c;";
     target.appendChild(iframe);
@@ -21,10 +23,15 @@
 
   window.addEventListener("message", function (event) {
     var data = event.data;
-    if (!data || data.source !== "pdfmagazine" || data.type !== "resize") return;
+    if (!data || data.source !== "pdfmagazine") return;
     document.querySelectorAll("[data-pdfmagazine] iframe").forEach(function (iframe) {
-      if (iframe.contentWindow === event.source && data.height) {
+      if (iframe.contentWindow !== event.source) return;
+      if (data.type === "resize" && data.height) {
         iframe.parentNode.style.paddingTop = Math.max(640, Number(data.height)) + "px";
+      }
+      if (data.type === "fullscreen") {
+        var req = iframe.requestFullscreen || iframe.webkitRequestFullscreen;
+        if (req) req.call(iframe);
       }
     });
   });

@@ -10,7 +10,7 @@ export function shareUrl(magazine: Magazine, origin: string) {
 export function embedCode(magazine: Magazine, origin: string) {
   const src = `${origin}/embed/${magazine.slug || magazine.id}`;
   const title = magazine.title.replace(/"/g, "&quot;");
-  return `<div style="position:relative;width:100%;height:0;padding-top:max(640px,62.5%);overflow:hidden;background:#1b1d1c;"><iframe src="${src}" title="${title}" allowfullscreen style="position:absolute;top:0;left:0;width:100% !important;height:100% !important;max-height:none !important;border:0;background:#1b1d1c;"></iframe></div>`;
+  return `<div style="position:relative;width:100%;height:0;padding-top:max(640px,62.5%);overflow:hidden;background:#1b1d1c;"><iframe src="${src}" title="${title}" allow="fullscreen" allowfullscreen webkitallowfullscreen style="position:absolute;top:0;left:0;width:100% !important;height:100% !important;max-height:none !important;border:0;background:#1b1d1c;"></iframe></div>`;
 }
 
 export function SharePanel({
@@ -63,6 +63,7 @@ export function SharePanel({
         <p className="text-sm font-semibold">Embed op je website</p>
         <p className="mt-1 text-sm text-ink/60">
           Kopieer de hele code, inclusief de buitenste div. Plak in een HTML-blok, niet in het iframe-blok van WordPress.
+          Bezoekers kunnen het magazine dan full screen openen.
         </p>
         <textarea readOnly value={iframe} rows={6} className="mt-3 w-full rounded-md border border-black/10 px-3 py-2 font-mono text-xs" />
         <button type="button" onClick={() => void copy("embed")} className="mt-2 rounded-md bg-ink px-3 py-2 text-sm text-white">
