@@ -7,9 +7,10 @@ export function shareUrl(magazine: Magazine, origin: string) {
   return `${origin}/v/${magazine.slug || magazine.id}`;
 }
 
-export function embedCode(magazine: Magazine, origin: string, height = 640) {
+export function embedCode(magazine: Magazine, origin: string) {
   const src = `${origin}/embed/${magazine.slug || magazine.id}`;
-  return `<iframe src="${src}" width="100%" height="${height}" style="border:0" allowfullscreen loading="lazy" title="${magazine.title}"></iframe>`;
+  const title = magazine.title.replace(/"/g, "&quot;");
+  return `<div style="position:relative;width:100%;height:80vh;min-height:640px;max-height:900px;"><iframe src="${src}" title="${title}" allowfullscreen style="position:absolute;inset:0;width:100%;height:100%;border:0;background:#1b1d1c;"></iframe></div>`;
 }
 
 export function SharePanel({
@@ -60,7 +61,9 @@ export function SharePanel({
       </div>
       <div>
         <p className="text-sm font-semibold">Embed op je website</p>
-        <p className="mt-1 text-sm text-ink/60">Plak deze iframe in WordPress, Shopify of je eigen HTML.</p>
+        <p className="mt-1 text-sm text-ink/60">
+          Plak deze code in een HTML-blok (niet in een gewone tekstparagraaf). Zo blijft het magazine op hoogte.
+        </p>
         <textarea readOnly value={iframe} rows={3} className="mt-3 w-full rounded-md border border-black/10 px-3 py-2 font-mono text-xs" />
         <button type="button" onClick={() => void copy("embed")} className="mt-2 rounded-md bg-ink px-3 py-2 text-sm text-white">
           {copied === "embed" ? "Gekopieerd" : "Kopieer embed-code"}

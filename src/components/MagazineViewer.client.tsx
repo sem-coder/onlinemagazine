@@ -5,7 +5,7 @@ import type { Magazine } from "@/lib/types";
 
 const Viewer = dynamic(
   () => import("@/components/MagazineViewer").then((mod) => mod.MagazineViewer),
-  { ssr: false, loading: () => <div className="flex min-h-dvh items-center justify-center bg-viewer text-paper">Magazine laden…</div> },
+  { ssr: false, loading: () => <div className="flex h-full min-h-dvh items-center justify-center bg-viewer text-paper">Magazine laden…</div> },
 );
 
 export function MagazineViewerClient({

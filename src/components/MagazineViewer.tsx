@@ -59,7 +59,7 @@ export function MagazineViewer({
           (pageW, pageH, portraitBook) => {
             const stage = stageRef.current?.getBoundingClientRect();
             const stageW = stage && stage.width > 80 ? stage.width : window.innerWidth;
-            const stageH = stage && stage.height > 200 ? stage.height : window.innerHeight - 72;
+            const stageH = stage && stage.height > 80 ? stage.height : window.innerHeight;
             const twoPage = portraitBook && stageW >= 720;
             return fitPdfInStage(pageW, pageH, stageW - 16, stageH - 16, twoPage);
           },
@@ -93,13 +93,21 @@ export function MagazineViewer({
   }, [magazine.id, magazine.pdfUrl, pagesFromImages]);
 
   useEffect(() => {
-    if (!pagesFromImages?.length) return;
-    const stage = stageRef.current?.getBoundingClientRect();
-    const stageW = stage && stage.width > 80 ? stage.width : window.innerWidth;
-    const stageH = stage && stage.height > 200 ? stage.height : window.innerHeight - 72;
-    const twoPage = magazine.pageWidth < magazine.pageHeight && stageW >= 720;
-    setLayout(fitPdfInStage(magazine.pageWidth, magazine.pageHeight, stageW - 16, stageH - 16, twoPage));
-  }, [pagesFromImages, magazine.pageWidth, magazine.pageHeight]);
+    if (pages.length === 0) return;
+    const stage = stageRef.current;
+    if (!stage) return;
+    const fit = () => {
+      const rect = stage.getBoundingClientRect();
+      const stageW = rect.width > 80 ? rect.width : window.innerWidth;
+      const stageH = rect.height > 80 ? rect.height : window.innerHeight;
+      const twoPage = magazine.pageWidth < magazine.pageHeight && stageW >= 720;
+      setLayout(fitPdfInStage(magazine.pageWidth, magazine.pageHeight, stageW - 16, stageH - 16, twoPage));
+    };
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(stage);
+    return () => observer.disconnect();
+  }, [pages.length, magazine.pageWidth, magazine.pageHeight]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -150,7 +158,7 @@ export function MagazineViewer({
   const loadPercent = totalPages ? Math.min(100, Math.round((progress.current / totalPages) * 100)) : 0;
 
   return (
-    <div className={`relative flex flex-col overflow-hidden bg-viewer text-paper ${embed ? "h-full min-h-[640px]" : "h-dvh"}`}>
+    <div className={`relative flex flex-col overflow-hidden bg-viewer text-paper ${embed ? "h-full w-full" : "h-dvh"}`}>
       {!embed ? (
         <header className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center justify-between px-5 py-3">
           <Link href="/" className="pointer-events-auto text-sm text-paper/70">
