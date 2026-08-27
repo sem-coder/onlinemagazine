@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { MagazineViewerClient } from "@/components/MagazineViewer.client";
 import { EXAMPLES, examplePages } from "@/lib/examples";
+import { leadFormFields } from "@/lib/lead-form";
 import type { Magazine } from "@/lib/types";
 
 type Params = { params: Promise<{ slug: string }> };
@@ -22,12 +23,7 @@ export default async function ExampleViewer({ params }: Params) {
     views: 0,
     viewsByDay: {},
     public: true,
-    leadForm: false,
-    leadTriggerPercent: 10,
-    leadTitle: "",
-    leadText: "",
-    leadButton: "",
-    leadSkip: "",
+    ...leadFormFields(),
     expiresAt: null,
   };
   return (

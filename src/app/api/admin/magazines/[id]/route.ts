@@ -21,6 +21,10 @@ export async function PATCH(request: Request, { params }: Params) {
     leadText?: string;
     leadButton?: string;
     leadSkip?: string;
+    leadBg?: string;
+    leadColor?: string;
+    leadAccent?: string;
+    leadAccentText?: string;
   };
 
   Object.assign(
@@ -34,6 +38,10 @@ export async function PATCH(request: Request, { params }: Params) {
       leadText: body.leadText ?? magazine.leadText,
       leadButton: body.leadButton ?? magazine.leadButton,
       leadSkip: body.leadSkip ?? magazine.leadSkip,
+      leadBg: body.leadBg ?? magazine.leadBg,
+      leadColor: body.leadColor ?? magazine.leadColor,
+      leadAccent: body.leadAccent ?? magazine.leadAccent,
+      leadAccentText: body.leadAccentText ?? magazine.leadAccentText,
     }),
   );
   await writeMeta(magazine);

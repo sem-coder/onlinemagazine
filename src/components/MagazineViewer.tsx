@@ -62,7 +62,9 @@ export function MagazineViewer({
             const stageW = stage && stage.width > 80 ? stage.width : window.innerWidth;
             const stageH = stage && stage.height > 80 ? stage.height : window.innerHeight;
             const twoPage = portraitBook && stageW >= 720;
-            return fitPdfInStage(pageW, pageH, stageW - 16, stageH - 16, twoPage);
+            const padX = 48;
+            const padY = 96;
+            return fitPdfInStage(pageW, pageH, Math.max(80, stageW - padX), Math.max(80, stageH - padY), twoPage);
           },
           (value) => {
             if (!cancelled) setProgress(value);
@@ -102,7 +104,7 @@ export function MagazineViewer({
       const stageW = rect.width > 80 ? rect.width : window.innerWidth;
       const stageH = rect.height > 80 ? rect.height : window.innerHeight;
       const twoPage = magazine.pageWidth < magazine.pageHeight && stageW >= 720;
-      setLayout(fitPdfInStage(magazine.pageWidth, magazine.pageHeight, stageW - 16, stageH - 16, twoPage));
+      setLayout(fitPdfInStage(magazine.pageWidth, magazine.pageHeight, Math.max(80, stageW - 48), Math.max(80, stageH - 96), twoPage));
     };
     fit();
     const observer = new ResizeObserver(fit);
@@ -192,7 +194,7 @@ export function MagazineViewer({
       ) : null}
 
       <main className="relative min-h-0 flex-1">
-        <div ref={stageRef} className="book-stage absolute inset-0 flex items-center justify-center pb-16">
+        <div ref={stageRef} className="book-stage absolute inset-0 flex items-center justify-center px-6 py-10">
           {error ? (
             <p className="text-sm text-red-300">{error}</p>
           ) : pages.length ? (
@@ -259,7 +261,8 @@ export function MagazineViewer({
       {lead ? (
         <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/50 p-4">
           <form
-            className="w-full max-w-sm rounded-2xl bg-white p-5 text-ink"
+            className="w-full max-w-sm rounded-2xl p-5 shadow-xl"
+            style={{ backgroundColor: leadCopy.leadBg, color: leadCopy.leadColor }}
             onSubmit={(event) => {
               event.preventDefault();
               const form = new FormData(event.currentTarget);
@@ -286,20 +289,38 @@ export function MagazineViewer({
             }}
           >
             <p className="font-semibold">{leadCopy.leadTitle}</p>
-            <p className="mt-1 text-sm text-ink/60">{leadCopy.leadText}</p>
-            <input name="name" placeholder="Naam" className="mt-4 w-full rounded-md border px-3 py-2 text-sm" />
+            <p className="mt-1 text-sm" style={{ opacity: 0.65 }}>
+              {leadCopy.leadText}
+            </p>
+            <input
+              name="name"
+              placeholder="Naam"
+              className="mt-4 w-full rounded-md border px-3 py-2 text-sm"
+              style={{ borderColor: `${leadCopy.leadColor}33`, color: leadCopy.leadColor, backgroundColor: leadCopy.leadBg }}
+            />
             <input
               name="email"
               type="email"
               required
               placeholder="E-mail"
               className="mt-2 w-full rounded-md border px-3 py-2 text-sm"
+              style={{ borderColor: `${leadCopy.leadColor}33`, color: leadCopy.leadColor, backgroundColor: leadCopy.leadBg }}
             />
             {leadError ? <p className="mt-2 text-sm text-red-700">{leadError}</p> : null}
-            <button type="submit" disabled={leadBusy} className="mt-4 w-full rounded-md bg-green py-2 text-sm text-white disabled:opacity-60">
+            <button
+              type="submit"
+              disabled={leadBusy}
+              className="mt-4 w-full rounded-md py-2 text-sm disabled:opacity-60"
+              style={{ backgroundColor: leadCopy.leadAccent, color: leadCopy.leadAccentText }}
+            >
               {leadBusy ? "Versturen…" : leadCopy.leadButton}
             </button>
-            <button type="button" onClick={() => dismissLead()} className="mt-2 w-full text-sm text-ink/50">
+            <button
+              type="button"
+              onClick={() => dismissLead()}
+              className="mt-2 w-full text-sm"
+              style={{ color: leadCopy.leadColor, opacity: 0.5 }}
+            >
               {leadCopy.leadSkip}
             </button>
           </form>

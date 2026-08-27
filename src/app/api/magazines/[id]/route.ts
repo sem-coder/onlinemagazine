@@ -40,6 +40,10 @@ export async function PATCH(
     leadText?: string;
     leadButton?: string;
     leadSkip?: string;
+    leadBg?: string;
+    leadColor?: string;
+    leadAccent?: string;
+    leadAccentText?: string;
   };
   const space = await workspaceUser();
   const plan = space?.owner.plan ?? "free";
@@ -54,7 +58,11 @@ export async function PATCH(
     body.leadTitle !== undefined ||
     body.leadText !== undefined ||
     body.leadButton !== undefined ||
-    body.leadSkip !== undefined
+    body.leadSkip !== undefined ||
+    body.leadBg !== undefined ||
+    body.leadColor !== undefined ||
+    body.leadAccent !== undefined ||
+    body.leadAccentText !== undefined
   ) {
     const enabled = typeof body.leadForm === "boolean" ? body.leadForm : magazine.leadForm;
     if (enabled && !canUse(plan, "leads")) {
@@ -71,6 +79,10 @@ export async function PATCH(
         leadText: body.leadText ?? magazine.leadText,
         leadButton: body.leadButton ?? magazine.leadButton,
         leadSkip: body.leadSkip ?? magazine.leadSkip,
+        leadBg: body.leadBg ?? magazine.leadBg,
+        leadColor: body.leadColor ?? magazine.leadColor,
+        leadAccent: body.leadAccent ?? magazine.leadAccent,
+        leadAccentText: body.leadAccentText ?? magazine.leadAccentText,
       }),
     );
   }

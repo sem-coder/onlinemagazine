@@ -20,6 +20,10 @@ export type Magazine = {
   leadText: string;
   leadButton: string;
   leadSkip: string;
+  leadBg: string;
+  leadColor: string;
+  leadAccent: string;
+  leadAccentText: string;
   expiresAt: string | null;
   pdfUrl?: string | null;
   coverUrl?: string | null;

@@ -4,11 +4,16 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { SharePanel } from "@/components/SharePanel";
 import {
+  DEFAULT_LEAD_ACCENT,
+  DEFAULT_LEAD_ACCENT_TEXT,
+  DEFAULT_LEAD_BG,
   DEFAULT_LEAD_BUTTON,
+  DEFAULT_LEAD_COLOR,
   DEFAULT_LEAD_SKIP,
   DEFAULT_LEAD_TEXT,
   DEFAULT_LEAD_TITLE,
   leadTriggerPage,
+  normalizeHexColor,
 } from "@/lib/lead-form";
 import { canUse } from "@/lib/plans";
 import type { Magazine, PlanId } from "@/lib/types";
@@ -23,6 +28,12 @@ export function MagazineSettings({ magazine, plan }: { magazine: Magazine; plan:
   const [leadText, setLeadText] = useState(magazine.leadText || DEFAULT_LEAD_TEXT);
   const [leadButton, setLeadButton] = useState(magazine.leadButton || DEFAULT_LEAD_BUTTON);
   const [leadSkip, setLeadSkip] = useState(magazine.leadSkip || DEFAULT_LEAD_SKIP);
+  const [leadBg, setLeadBg] = useState(normalizeHexColor(magazine.leadBg, DEFAULT_LEAD_BG));
+  const [leadColor, setLeadColor] = useState(normalizeHexColor(magazine.leadColor, DEFAULT_LEAD_COLOR));
+  const [leadAccent, setLeadAccent] = useState(normalizeHexColor(magazine.leadAccent, DEFAULT_LEAD_ACCENT));
+  const [leadAccentText, setLeadAccentText] = useState(
+    normalizeHexColor(magazine.leadAccentText, DEFAULT_LEAD_ACCENT_TEXT),
+  );
   const [preview, setPreview] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const leadsOk = canUse(plan, "leads");
@@ -38,6 +49,10 @@ export function MagazineSettings({ magazine, plan }: { magazine: Magazine; plan:
     leadText?: string;
     leadButton?: string;
     leadSkip?: string;
+    leadBg?: string;
+    leadColor?: string;
+    leadAccent?: string;
+    leadAccentText?: string;
   } = {}) {
     const nextLeadForm = patch.leadForm ?? leadForm;
     const response = await fetch(`/api/magazines/${magazine.id}`, {
@@ -52,6 +67,10 @@ export function MagazineSettings({ magazine, plan }: { magazine: Magazine; plan:
         leadText: patch.leadText ?? leadText,
         leadButton: patch.leadButton ?? leadButton,
         leadSkip: patch.leadSkip ?? leadSkip,
+        leadBg: patch.leadBg ?? leadBg,
+        leadColor: patch.leadColor ?? leadColor,
+        leadAccent: patch.leadAccent ?? leadAccent,
+        leadAccentText: patch.leadAccentText ?? leadAccentText,
       }),
     });
     const data = (await response.json()) as { error?: string; magazine?: Magazine };
@@ -185,6 +204,15 @@ export function MagazineSettings({ magazine, plan }: { magazine: Magazine; plan:
               className="mt-1 w-full rounded-md border px-3 py-2"
             />
           </label>
+          <div className="sm:col-span-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <ColorField label="Achtergrond" value={leadBg} fallback={DEFAULT_LEAD_BG} onChange={setLeadBg} disabled={!leadsOk} />
+            <ColorField label="Tekst" value={leadColor} fallback={DEFAULT_LEAD_COLOR} onChange={setLeadColor} disabled={!leadsOk} />
+            <ColorField label="Knop" value={leadAccent} fallback={DEFAULT_LEAD_ACCENT} onChange={setLeadAccent} disabled={!leadsOk} />
+            <ColorField label="Knoptekst" value={leadAccentText} fallback={DEFAULT_LEAD_ACCENT_TEXT} onChange={setLeadAccentText} disabled={!leadsOk} />
+          </div>
+          <p className="sm:col-span-2 text-xs text-ink/45">
+            Kies je huisstijl. De knop is meestal je merkkleur.
+          </p>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
@@ -204,20 +232,63 @@ export function MagazineSettings({ magazine, plan }: { magazine: Magazine; plan:
 
       {preview ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-5">
+          <div className="w-full max-w-sm rounded-2xl p-5 shadow-xl" style={{ backgroundColor: leadBg, color: leadColor }}>
             <p className="font-semibold">{leadTitle}</p>
-            <p className="mt-1 text-sm text-ink/60">{leadText}</p>
-            <input readOnly placeholder="Naam" className="mt-4 w-full rounded-md border px-3 py-2 text-sm" />
-            <input readOnly placeholder="E-mail" className="mt-2 w-full rounded-md border px-3 py-2 text-sm" />
-            <button type="button" className="mt-4 w-full rounded-md bg-green py-2 text-sm text-white">
+            <p className="mt-1 text-sm" style={{ opacity: 0.65 }}>
+              {leadText}
+            </p>
+            <input readOnly placeholder="Naam" className="mt-4 w-full rounded-md border px-3 py-2 text-sm" style={{ borderColor: `${leadColor}33` }} />
+            <input readOnly placeholder="E-mail" className="mt-2 w-full rounded-md border px-3 py-2 text-sm" style={{ borderColor: `${leadColor}33` }} />
+            <button type="button" className="mt-4 w-full rounded-md py-2 text-sm" style={{ backgroundColor: leadAccent, color: leadAccentText }}>
               {leadButton}
             </button>
-            <button type="button" onClick={() => setPreview(false)} className="mt-2 w-full text-sm text-ink/50">
+            <button type="button" onClick={() => setPreview(false)} className="mt-2 w-full text-sm" style={{ color: leadColor, opacity: 0.5 }}>
               {leadSkip}
             </button>
           </div>
         </div>
       ) : null}
     </div>
+  );
+}
+
+function ColorField({
+  label,
+  value,
+  fallback,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  value: string;
+  fallback: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <label className="block text-sm">
+      {label}
+      <span className="mt-1 flex items-center gap-2">
+        <input
+          type="color"
+          value={/^#[0-9a-fA-F]{6}$/.test(value) ? value : fallback}
+          disabled={disabled}
+          onChange={(event) => onChange(event.target.value)}
+          className="h-10 w-10 shrink-0 cursor-pointer rounded border border-black/10 bg-white p-0.5 disabled:opacity-50"
+        />
+        <input
+          value={value}
+          disabled={disabled}
+          onChange={(event) => {
+            const next = event.target.value.trim();
+            if (/^#?[0-9a-fA-F]{0,6}$/.test(next)) {
+              onChange(next.startsWith("#") || next === "" ? next || "#" : `#${next}`);
+            }
+          }}
+          onBlur={() => onChange(normalizeHexColor(value, fallback))}
+          className="w-full rounded-md border px-3 py-2 font-mono text-xs uppercase disabled:bg-black/5"
+        />
+      </span>
+    </label>
   );
 }
