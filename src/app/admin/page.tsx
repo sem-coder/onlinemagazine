@@ -81,6 +81,7 @@ export default async function AdminHomePage() {
                     <p className="text-ink/50">
                       {ownerName.get(magazine.ownerId) ?? (magazine.ownerId.startsWith("guest_") ? "Gast" : magazine.ownerId)} ·{" "}
                       {magazine.views} weergaven
+                      {magazine.leadForm ? " · lead aan" : ""}
                     </p>
                   </div>
                   <Link href={`/v/${magazine.slug}`} className="text-green">

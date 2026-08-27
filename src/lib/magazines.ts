@@ -1,5 +1,6 @@
 import { MAGAZINE_ID_PATTERN, type Magazine } from "@/lib/types";
 import { blobEnabled, deletePrefix, getObject, listObjectUrls, putObject } from "@/lib/store";
+import { leadFormFields } from "@/lib/lead-form";
 
 function magazinePrefix(id: string) {
   if (!MAGAZINE_ID_PATTERN.test(id)) throw new Error("Ongeldig magazine-id");
@@ -43,7 +44,7 @@ function normalizeMagazine(raw: Partial<Magazine> & { id: string }): Magazine {
     views: raw.views ?? 0,
     viewsByDay: raw.viewsByDay ?? {},
     public: raw.public ?? true,
-    leadForm: raw.leadForm ?? false,
+    ...leadFormFields(raw),
     expiresAt: raw.expiresAt ?? null,
     pdfUrl: raw.pdfUrl ?? null,
     coverUrl: raw.coverUrl ?? null,

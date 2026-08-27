@@ -62,6 +62,20 @@ export function AdminUserEditor({
     router.refresh();
   }
 
+  async function toggleLead(id: string, leadForm: boolean) {
+    const response = await fetch(`/api/admin/magazines/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ leadForm }),
+    });
+    const data = (await response.json()) as { error?: string };
+    if (!response.ok) {
+      setMessage(data.error ?? "Leadformulier bijwerken mislukt.");
+      return;
+    }
+    router.refresh();
+  }
+
   async function removeMagazine(id: string, title: string) {
     if (!confirm(`Magazine “${title}” verwijderen?`)) return;
     const response = await fetch(`/api/admin/magazines/${id}`, { method: "DELETE" });
@@ -155,6 +169,14 @@ export function AdminUserEditor({
                   </p>
                 </div>
                 <div className="flex gap-3">
+                  <label className="flex items-center gap-1.5 text-ink/70">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(magazine.leadForm)}
+                      onChange={() => void toggleLead(magazine.id, !magazine.leadForm)}
+                    />
+                    Leadformulier
+                  </label>
                   <Link href={`/v/${magazine.slug}`} className="text-green">
                     Openen
                   </Link>

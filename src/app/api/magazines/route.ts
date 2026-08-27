@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { actorId, getSessionUser, workspaceUser } from "@/lib/auth";
 import { getMagazine, listMagazinesForOwner, saveMagazine, uniqueSlug, usedStorageBytes } from "@/lib/magazines";
-import { getPlan, storageLimitBytes } from "@/lib/plans";
+import { canUse, getPlan, storageLimitBytes } from "@/lib/plans";
 import { blobEnabled } from "@/lib/store";
+import { leadFormFields } from "@/lib/lead-form";
 import { GUEST_TTL_DAYS, MAGAZINE_ID_PATTERN, MAX_FLIP_PAGES, MAX_PDF_BYTES, type Magazine } from "@/lib/types";
 import { nanoid } from "nanoid";
 
@@ -46,6 +47,11 @@ async function enforceQuota(ownerId: string, extraBytes = 0) {
 
 function guestExpiry(user: Awaited<ReturnType<typeof getSessionUser>>) {
   return user ? null : new Date(Date.now() + GUEST_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString();
+}
+
+async function defaultLeadFields() {
+  const space = await workspaceUser();
+  return leadFormFields({ leadForm: canUse(space?.owner.plan ?? "free", "leads") });
 }
 
 export async function GET() {
@@ -105,7 +111,7 @@ export async function POST(request: Request) {
       views: 0,
       viewsByDay: {},
       public: true,
-      leadForm: false,
+      ...await defaultLeadFields(),
       expiresAt: guestExpiry(user),
       pdfUrl: body.pdfUrl,
       coverUrl: body.coverUrl,
@@ -165,7 +171,7 @@ export async function POST(request: Request) {
     views: 0,
     viewsByDay: {},
     public: true,
-    leadForm: false,
+    ...await defaultLeadFields(),
     expiresAt: guestExpiry(user),
     bytes: pdf.size,
   };

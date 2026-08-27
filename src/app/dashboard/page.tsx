@@ -42,6 +42,7 @@ export default async function DashboardPage() {
                 <p className="font-medium">{magazine.title}</p>
                 <p className="text-sm text-ink/55">
                   {magazine.views} weergaven · /v/{magazine.slug}
+                  {magazine.leadForm ? " · leadformulier aan" : ""}
                 </p>
               </div>
             </Link>

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { actorId, workspaceUser } from "@/lib/auth";
 import { deleteMagazine, getMagazine, slugTaken, uniqueSlug, writeMeta } from "@/lib/magazines";
 import { canUse } from "@/lib/plans";
+import { clampLeadPercent, leadFormFields } from "@/lib/lead-form";
 import { SLUG_PATTERN } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -34,6 +35,11 @@ export async function PATCH(
     slug?: string;
     public?: boolean;
     leadForm?: boolean;
+    leadTriggerPercent?: number;
+    leadTitle?: string;
+    leadText?: string;
+    leadButton?: string;
+    leadSkip?: string;
   };
   const space = await workspaceUser();
   const plan = space?.owner.plan ?? "free";
@@ -42,11 +48,31 @@ export async function PATCH(
     magazine.title = body.title.trim();
   }
   if (typeof body.public === "boolean") magazine.public = body.public;
-  if (typeof body.leadForm === "boolean") {
-    if (body.leadForm && !canUse(plan, "leads")) {
+  if (
+    typeof body.leadForm === "boolean" ||
+    body.leadTriggerPercent !== undefined ||
+    body.leadTitle !== undefined ||
+    body.leadText !== undefined ||
+    body.leadButton !== undefined ||
+    body.leadSkip !== undefined
+  ) {
+    const enabled = typeof body.leadForm === "boolean" ? body.leadForm : magazine.leadForm;
+    if (enabled && !canUse(plan, "leads")) {
       return NextResponse.json({ error: "Leadformulieren zitten in Professional.", upgrade: true }, { status: 402 });
     }
-    magazine.leadForm = body.leadForm;
+    Object.assign(
+      magazine,
+      leadFormFields({
+        ...magazine,
+        leadForm: enabled,
+        leadTriggerPercent:
+          body.leadTriggerPercent !== undefined ? clampLeadPercent(body.leadTriggerPercent) : magazine.leadTriggerPercent,
+        leadTitle: body.leadTitle ?? magazine.leadTitle,
+        leadText: body.leadText ?? magazine.leadText,
+        leadButton: body.leadButton ?? magazine.leadButton,
+        leadSkip: body.leadSkip ?? magazine.leadSkip,
+      }),
+    );
   }
   if (typeof body.slug === "string") {
     if (!canUse(plan, "slug")) {

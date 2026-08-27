@@ -6,6 +6,7 @@ import { PageFlip } from "page-flip";
 import { useEffect, useRef, useState } from "react";
 import { Flipbook } from "@/components/Flipbook";
 import { SharePanel } from "@/components/SharePanel";
+import { leadFormFields, leadTriggerPage } from "@/lib/lead-form";
 import { fitPdfInStage, renderPdf, revokePages } from "@/lib/pdf";
 import type { Magazine } from "@/lib/types";
 
@@ -125,33 +126,37 @@ export function MagazineViewer({
   }, []);
 
   useEffect(() => {
+    const settings = leadFormFields(magazine);
+    if (!settings.leadForm || lead || share) return;
     try {
-      if (localStorage.getItem(leadStorageKey(magazine.id)) === "done") {
+      if (
+        localStorage.getItem(leadDoneKey(magazine.id)) === "done" ||
+        sessionStorage.getItem(leadSkipKey(magazine.id)) === "skip"
+      ) {
         leadLockRef.current = true;
       }
     } catch {
       /* ignore */
     }
-  }, [magazine.id]);
-
-  useEffect(() => {
-    if (!magazine.leadForm || leadLockRef.current || lead || share || pages.length === 0) return;
+    if (leadLockRef.current || pages.length === 0) return;
     const total = Math.max(progress.total, magazine.pageCount, pages.length, 1);
-    const triggerAt = Math.max(2, Math.ceil(total * 0.1));
+    const triggerAt = leadTriggerPage(total, settings.leadTriggerPercent);
     if (page + 1 < triggerAt) return;
     setLead(true);
-  }, [page, pages.length, progress.total, magazine.leadForm, magazine.pageCount, lead, share]);
+  }, [page, pages.length, progress.total, magazine.id, magazine.leadForm, magazine.leadTriggerPercent, magazine.pageCount, lead, share]);
 
-  function dismissLead() {
+  function dismissLead(persist: "done" | "skip" = "skip") {
     leadLockRef.current = true;
     setLead(false);
     try {
-      localStorage.setItem(leadStorageKey(magazine.id), "done");
+      if (persist === "done") localStorage.setItem(leadDoneKey(magazine.id), "done");
+      else sessionStorage.setItem(leadSkipKey(magazine.id), "skip");
     } catch {
       /* ignore */
     }
   }
 
+  const leadCopy = leadFormFields(magazine);
   const embed = mode === "embed";
   const totalPages = Math.max(progress.total, pages.length, magazine.pageCount);
   const loading = progress.current < totalPages || (pages.length === 0 && !error);
@@ -275,7 +280,7 @@ export function MagazineViewer({
                 .then(async (response) => {
                   const data = (await response.json()) as { error?: string };
                   if (!response.ok) throw new Error(data.error ?? "Versturen mislukt.");
-                  dismissLead();
+                  dismissLead("done");
                 })
                 .catch((err: unknown) => {
                   setLeadError(err instanceof Error ? err.message : "Versturen mislukt.");
@@ -283,8 +288,8 @@ export function MagazineViewer({
                 .finally(() => setLeadBusy(false));
             }}
           >
-            <p className="font-semibold">Blijf op de hoogte</p>
-            <p className="mt-1 text-sm text-ink/60">Laat je e-mail achter en sla deze catalogus op.</p>
+            <p className="font-semibold">{leadCopy.leadTitle}</p>
+            <p className="mt-1 text-sm text-ink/60">{leadCopy.leadText}</p>
             <input name="name" placeholder="Naam" className="mt-4 w-full rounded-md border px-3 py-2 text-sm" />
             <input
               name="email"
@@ -295,10 +300,10 @@ export function MagazineViewer({
             />
             {leadError ? <p className="mt-2 text-sm text-red-700">{leadError}</p> : null}
             <button type="submit" disabled={leadBusy} className="mt-4 w-full rounded-md bg-green py-2 text-sm text-white disabled:opacity-60">
-              {leadBusy ? "Versturen…" : "Verstuur"}
+              {leadBusy ? "Versturen…" : leadCopy.leadButton}
             </button>
-            <button type="button" onClick={dismissLead} className="mt-2 w-full text-sm text-ink/50">
-              Nee bedankt
+            <button type="button" onClick={() => dismissLead("skip")} className="mt-2 w-full text-sm text-ink/50">
+              {leadCopy.leadSkip}
             </button>
           </form>
         </div>
@@ -307,8 +312,12 @@ export function MagazineViewer({
   );
 }
 
-function leadStorageKey(magazineId: string) {
-  return `folio-lead-v3-${magazineId}`;
+function leadDoneKey(magazineId: string) {
+  return `folio-lead-v5-${magazineId}`;
+}
+
+function leadSkipKey(magazineId: string) {
+  return `folio-lead-skip-v5-${magazineId}`;
 }
 
 function pageLabel(page: number, total: number, single: boolean) {

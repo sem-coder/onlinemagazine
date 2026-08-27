@@ -23,6 +23,11 @@ export default async function ExampleViewer({ params }: Params) {
     viewsByDay: {},
     public: true,
     leadForm: false,
+    leadTriggerPercent: 10,
+    leadTitle: "",
+    leadText: "",
+    leadButton: "",
+    leadSkip: "",
     expiresAt: null,
   };
   return (

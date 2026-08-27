@@ -15,6 +15,11 @@ export type Magazine = {
   viewsByDay: Record<string, number>;
   public: boolean;
   leadForm: boolean;
+  leadTriggerPercent: number;
+  leadTitle: string;
+  leadText: string;
+  leadButton: string;
+  leadSkip: string;
   expiresAt: string | null;
   pdfUrl?: string | null;
   coverUrl?: string | null;

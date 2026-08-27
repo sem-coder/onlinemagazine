@@ -1,24 +1,58 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { SharePanel } from "@/components/SharePanel";
-import type { Magazine } from "@/lib/types";
+import {
+  DEFAULT_LEAD_BUTTON,
+  DEFAULT_LEAD_SKIP,
+  DEFAULT_LEAD_TEXT,
+  DEFAULT_LEAD_TITLE,
+  leadTriggerPage,
+} from "@/lib/lead-form";
 import { canUse } from "@/lib/plans";
-import type { PlanId } from "@/lib/types";
+import type { Magazine, PlanId } from "@/lib/types";
 
 export function MagazineSettings({ magazine, plan }: { magazine: Magazine; plan: PlanId }) {
   const router = useRouter();
   const [title, setTitle] = useState(magazine.title);
   const [slug, setSlug] = useState(magazine.slug);
   const [leadForm, setLeadForm] = useState(magazine.leadForm);
+  const [leadTriggerPercent, setLeadTriggerPercent] = useState(magazine.leadTriggerPercent ?? 10);
+  const [leadTitle, setLeadTitle] = useState(magazine.leadTitle || DEFAULT_LEAD_TITLE);
+  const [leadText, setLeadText] = useState(magazine.leadText || DEFAULT_LEAD_TEXT);
+  const [leadButton, setLeadButton] = useState(magazine.leadButton || DEFAULT_LEAD_BUTTON);
+  const [leadSkip, setLeadSkip] = useState(magazine.leadSkip || DEFAULT_LEAD_SKIP);
+  const [preview, setPreview] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const leadsOk = canUse(plan, "leads");
+  const triggerPage = useMemo(
+    () => leadTriggerPage(magazine.pageCount, leadTriggerPercent),
+    [magazine.pageCount, leadTriggerPercent],
+  );
 
-  async function save() {
+  async function save(patch: {
+    leadForm?: boolean;
+    leadTriggerPercent?: number;
+    leadTitle?: string;
+    leadText?: string;
+    leadButton?: string;
+    leadSkip?: string;
+  } = {}) {
+    const nextLeadForm = patch.leadForm ?? leadForm;
     const response = await fetch(`/api/magazines/${magazine.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, slug, leadForm }),
+      body: JSON.stringify({
+        title,
+        slug,
+        leadForm: nextLeadForm,
+        leadTriggerPercent: patch.leadTriggerPercent ?? leadTriggerPercent,
+        leadTitle: patch.leadTitle ?? leadTitle,
+        leadText: patch.leadText ?? leadText,
+        leadButton: patch.leadButton ?? leadButton,
+        leadSkip: patch.leadSkip ?? leadSkip,
+      }),
     });
     const data = (await response.json()) as { error?: string; magazine?: Magazine };
     if (!response.ok) {
@@ -38,42 +72,152 @@ export function MagazineSettings({ magazine, plan }: { magazine: Magazine; plan:
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
-      <div className="space-y-4 rounded-2xl bg-white p-5 ring-1 ring-black/5">
-        <h2 className="font-semibold">Instellingen</h2>
-        <label className="block text-sm">
-          Titel
-          <input value={title} onChange={(e) => setTitle(e.target.value)} className="mt-1 w-full rounded-md border px-3 py-2" />
-        </label>
-        <label className="block text-sm">
-          Eigen URL-slug {canUse(plan, "slug") ? "" : "(Professional)"}
-          <input
-            value={slug}
-            disabled={!canUse(plan, "slug")}
-            onChange={(e) => setSlug(e.target.value)}
-            className="mt-1 w-full rounded-md border px-3 py-2 disabled:bg-black/5"
-          />
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={leadForm}
-            disabled={!canUse(plan, "leads")}
-            onChange={(e) => setLeadForm(e.target.checked)}
-          />
-          Leadformulier in de viewer {canUse(plan, "leads") ? "" : "(Professional)"}
-        </label>
-        <div className="flex gap-2">
-          <button type="button" onClick={() => void save()} className="rounded-md bg-green px-4 py-2 text-sm text-white">
-            Opslaan
+    <div className="space-y-6">
+      <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
+        <div className="space-y-4 rounded-2xl bg-white p-5 ring-1 ring-black/5">
+          <h2 className="font-semibold">Instellingen</h2>
+          <label className="block text-sm">
+            Titel
+            <input value={title} onChange={(e) => setTitle(e.target.value)} className="mt-1 w-full rounded-md border px-3 py-2" />
+          </label>
+          <label className="block text-sm">
+            Eigen URL-slug {canUse(plan, "slug") ? "" : "(Professional)"}
+            <input
+              value={slug}
+              disabled={!canUse(plan, "slug")}
+              onChange={(e) => setSlug(e.target.value)}
+              className="mt-1 w-full rounded-md border px-3 py-2 disabled:bg-black/5"
+            />
+          </label>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => void save()} className="rounded-md bg-green px-4 py-2 text-sm text-white">
+              Opslaan
+            </button>
+            <button type="button" onClick={() => void remove()} className="rounded-md px-4 py-2 text-sm text-red-700">
+              Verwijderen
+            </button>
+          </div>
+          {message ? <p className="text-sm text-ink/60">{message}</p> : null}
+        </div>
+        <SharePanel magazine={{ ...magazine, title, slug }} canDownload={canUse(plan, "download")} />
+      </div>
+
+      <section className="rounded-2xl bg-white p-5 ring-1 ring-black/5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="font-semibold">Leadformulier</h2>
+            <p className="mt-1 text-sm text-ink/55">
+              {leadsOk
+                ? leadForm
+                  ? leadTriggerPercent <= 0
+                    ? "Verschijnt meteen bij het openen, één keer per bezoek."
+                    : `Verschijnt één keer per bezoek, na ${leadTriggerPercent}% van de brochure (rond pagina ${triggerPage} van ${magazine.pageCount}).`
+                  : "Formulier staat uit. Zet ‘Formulier tonen’ aan en sla op, anders zie je het niet in de brochure."
+                : "Zit in Professional. Upgrade om leads te vangen in de viewer."}
+            </p>
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={leadForm}
+              disabled={!leadsOk}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setLeadForm(checked);
+                void save({ leadForm: checked });
+              }}
+            />
+            Formulier tonen
+          </label>
+        </div>
+
+        <div className={`mt-5 grid gap-3 sm:grid-cols-2 ${leadsOk ? "" : "pointer-events-none opacity-50"}`}>
+          <label className="block text-sm sm:col-span-2">
+            {leadTriggerPercent <= 0
+              ? "Toon direct bij openen"
+              : `Toon na ${leadTriggerPercent}% van de pagina’s`}
+            <input
+              type="range"
+              min={0}
+              max={50}
+              step={5}
+              value={leadTriggerPercent}
+              disabled={!leadsOk}
+              onChange={(e) => setLeadTriggerPercent(Number(e.target.value))}
+              className="mt-2 w-full accent-green"
+            />
+            <span className="mt-1 block text-xs text-ink/45">0% = meteen. Handig om te testen.</span>
+          </label>
+          <label className="block text-sm">
+            Titel
+            <input
+              value={leadTitle}
+              disabled={!leadsOk}
+              onChange={(e) => setLeadTitle(e.target.value)}
+              className="mt-1 w-full rounded-md border px-3 py-2"
+            />
+          </label>
+          <label className="block text-sm">
+            Knop
+            <input
+              value={leadButton}
+              disabled={!leadsOk}
+              onChange={(e) => setLeadButton(e.target.value)}
+              className="mt-1 w-full rounded-md border px-3 py-2"
+            />
+          </label>
+          <label className="block text-sm sm:col-span-2">
+            Tekst
+            <textarea
+              value={leadText}
+              disabled={!leadsOk}
+              onChange={(e) => setLeadText(e.target.value)}
+              rows={2}
+              className="mt-1 w-full rounded-md border px-3 py-2"
+            />
+          </label>
+          <label className="block text-sm">
+            Overslaan
+            <input
+              value={leadSkip}
+              disabled={!leadsOk}
+              onChange={(e) => setLeadSkip(e.target.value)}
+              className="mt-1 w-full rounded-md border px-3 py-2"
+            />
+          </label>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button type="button" onClick={() => void save()} disabled={!leadsOk} className="rounded-md bg-green px-4 py-2 text-sm text-white disabled:opacity-50">
+            Leadformulier opslaan
           </button>
-          <button type="button" onClick={() => void remove()} className="rounded-md px-4 py-2 text-sm text-red-700">
-            Verwijderen
+          <button
+            type="button"
+            disabled={!leadsOk}
+            onClick={() => setPreview(true)}
+            className="rounded-md border border-black/10 px-4 py-2 text-sm disabled:opacity-50"
+          >
+            Voorbeeld
           </button>
         </div>
-        {message ? <p className="text-sm text-ink/60">{message}</p> : null}
-      </div>
-      <SharePanel magazine={{ ...magazine, title, slug }} canDownload={canUse(plan, "download")} />
+      </section>
+
+      {preview ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5">
+            <p className="font-semibold">{leadTitle}</p>
+            <p className="mt-1 text-sm text-ink/60">{leadText}</p>
+            <input readOnly placeholder="Naam" className="mt-4 w-full rounded-md border px-3 py-2 text-sm" />
+            <input readOnly placeholder="E-mail" className="mt-2 w-full rounded-md border px-3 py-2 text-sm" />
+            <button type="button" className="mt-4 w-full rounded-md bg-green py-2 text-sm text-white">
+              {leadButton}
+            </button>
+            <button type="button" onClick={() => setPreview(false)} className="mt-2 w-full text-sm text-ink/50">
+              {leadSkip}
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
