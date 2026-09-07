@@ -1,3 +1,4 @@
+import { PageFlip } from "page-flip";
 import {
   BufferTarget,
   CanvasSource,
@@ -11,145 +12,73 @@ import { GIFEncoder, applyPalette, quantize } from "gifenc";
 export type PromoFormat = "mp4" | "gif";
 
 const BG = "#1b1d1c";
-const HOLD_COVER = 1.15;
-const HOLD_SPREAD = 0.8;
-const HOLD_END = 1.45;
-const FLIP = 0.62;
+const HOLD_COVER = 1.05;
+const HOLD_SPREAD = 0.72;
+const HOLD_END = 1.35;
+const FLIP_MS = 900;
 
-type Leaf = ImageBitmap | null;
-
-type Scene =
-  | { kind: "hold"; duration: number; left: Leaf; right: Leaf }
-  | { kind: "flip"; duration: number; left: Leaf; from: Leaf; back: Leaf; nextRight: Leaf };
-
-function easeInOut(t: number) {
-  return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+function wait(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
-export function buildPromoScenes(pages: ImageBitmap[]): Scene[] {
-  if (pages.length === 0) return [];
-  const scenes: Scene[] = [{ kind: "hold", duration: HOLD_COVER, left: null, right: pages[0] }];
-  let index = 0;
-  while (index + 1 < pages.length) {
-    const back = pages[index + 1] ?? null;
-    const nextRight = pages[index + 2] ?? null;
-    const left = index === 0 ? null : pages[index - 1] ?? null;
-    scenes.push({
-      kind: "flip",
-      duration: FLIP,
-      left,
-      from: pages[index] ?? null,
-      back,
-      nextRight,
-    });
-    scenes.push({
-      kind: "hold",
-      duration: index + 2 >= pages.length - 1 ? HOLD_END : HOLD_SPREAD,
-      left: back,
-      right: nextRight,
-    });
-    index += 2;
-  }
-  if (scenes.length === 1) scenes[0] = { ...scenes[0], duration: HOLD_END };
-  return scenes;
+function frame() {
+  return new Promise<number>((resolve) => requestAnimationFrame(resolve));
 }
 
-function bookRect(width: number, height: number, pageW: number, pageH: number) {
-  const pad = Math.round(Math.min(width, height) * 0.09);
+function bookSize(pageW: number, pageH: number, stage: number) {
+  const pad = Math.round(stage * 0.1);
   const aspect = pageW / Math.max(pageH, 1);
-  const maxH = height - pad * 2;
-  const maxW = width - pad * 2;
-  const leafH = Math.min(maxH, maxW / (aspect * 2));
-  const leafW = leafH * aspect;
-  const bookW = leafW * 2;
-  const bookH = leafH;
-  return {
-    x: (width - bookW) / 2,
-    y: (height - bookH) / 2,
-    leafW,
-    leafH,
-    bookW,
-    bookH,
-  };
+  const maxH = stage - pad * 2;
+  const maxW = stage - pad * 2;
+  let leafH = Math.floor(Math.min(maxH, maxW / (aspect * 2)));
+  if (leafH % 2) leafH -= 1;
+  let leafW = Math.floor(leafH * aspect);
+  if (leafW % 2) leafW -= 1;
+  return { leafW: Math.max(2, leafW), leafH: Math.max(2, leafH) };
 }
 
-function drawLeaf(
-  ctx: CanvasRenderingContext2D,
-  img: Leaf,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-) {
-  ctx.fillStyle = "#fff";
-  ctx.fillRect(x, y, w, h);
-  if (img) ctx.drawImage(img, x, y, w, h);
-}
-
-function drawTurning(
-  ctx: CanvasRenderingContext2D,
-  img: Leaf,
-  spineX: number,
-  y: number,
-  leafW: number,
-  leafH: number,
-  scaleX: number,
-) {
-  if (Math.abs(scaleX) < 0.02) return;
-  ctx.save();
-  ctx.translate(spineX, y);
-  ctx.scale(scaleX, 1);
-  drawLeaf(ctx, img, 0, 0, leafW, leafH);
-  const shade = 0.32 * (1 - Math.abs(scaleX));
-  ctx.fillStyle = `rgba(0,0,0,${shade})`;
-  ctx.fillRect(0, 0, leafW, leafH);
-  ctx.restore();
-}
-
-function drawScene(ctx: CanvasRenderingContext2D, scene: Scene, localT: number, width: number, height: number, pageW: number, pageH: number) {
-  ctx.fillStyle = BG;
-  ctx.fillRect(0, 0, width, height);
-  const book = bookRect(width, height, pageW, pageH);
-  const spine = book.x + book.leafW;
-
-  ctx.save();
-  ctx.shadowColor = "rgba(0,0,0,0.5)";
-  ctx.shadowBlur = Math.round(book.leafH * 0.08);
-  ctx.shadowOffsetY = Math.round(book.leafH * 0.03);
-
-  if (scene.kind === "hold") {
-    if (scene.left) drawLeaf(ctx, scene.left, book.x, book.y, book.leafW, book.leafH);
-    if (scene.right) drawLeaf(ctx, scene.right, spine, book.y, book.leafW, book.leafH);
-    ctx.fillStyle = "rgba(0,0,0,0.18)";
-    ctx.fillRect(spine - 1, book.y, 2, book.leafH);
-    ctx.restore();
-    return;
+async function bitmapUrls(pages: ImageBitmap[]) {
+  const urls: string[] = [];
+  for (const page of pages) {
+    const canvas = document.createElement("canvas");
+    canvas.width = page.width;
+    canvas.height = page.height;
+    const ctx = canvas.getContext("2d", { alpha: false });
+    if (!ctx) throw new Error("Canvas niet beschikbaar");
+    ctx.drawImage(page, 0, 0);
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((value) => (value ? resolve(value) : reject(new Error("Pagina exporteren mislukt"))), "image/jpeg", 0.92);
+    });
+    urls.push(URL.createObjectURL(blob));
   }
-
-  const t = easeInOut(localT);
-  const scaleX = Math.cos(t * Math.PI);
-  if (scene.left) drawLeaf(ctx, scene.left, book.x, book.y, book.leafW, book.leafH);
-  if (scene.nextRight) drawLeaf(ctx, scene.nextRight, spine, book.y, book.leafW, book.leafH);
-  ctx.restore();
-
-  if (scaleX >= 0) drawTurning(ctx, scene.from, spine, book.y, book.leafW, book.leafH, scaleX);
-  else drawTurning(ctx, scene.back, spine, book.y, book.leafW, book.leafH, scaleX);
+  return urls;
 }
 
-function sceneAt(scenes: Scene[], time: number) {
-  let elapsed = 0;
-  for (const scene of scenes) {
-    if (time < elapsed + scene.duration) {
-      return { scene, local: (time - elapsed) / scene.duration };
-    }
-    elapsed += scene.duration;
-  }
-  const last = scenes[scenes.length - 1];
-  return { scene: last, local: 1 };
+async function preload(urls: string[]) {
+  await Promise.all(
+    urls.map(
+      (src) =>
+        new Promise<void>((resolve, reject) => {
+          const image = new Image();
+          image.onload = () => resolve();
+          image.onerror = () => reject(new Error("Pagina kon niet worden geladen."));
+          image.src = src;
+        }),
+    ),
+  );
 }
 
-export function promoDuration(scenes: Scene[]) {
-  return scenes.reduce((sum, scene) => sum + scene.duration, 0);
+function paintBook(out: CanvasRenderingContext2D, src: HTMLCanvasElement, size: number) {
+  out.fillStyle = BG;
+  out.fillRect(0, 0, size, size);
+  const x = (size - src.width) / 2;
+  const y = (size - src.height) / 2;
+  out.save();
+  out.shadowColor = "rgba(0,0,0,0.55)";
+  out.shadowBlur = Math.round(src.height * 0.06);
+  out.shadowOffsetY = Math.round(src.height * 0.025);
+  out.drawImage(src, x, y);
+  out.restore();
 }
 
 function downloadBlob(blob: Blob, filename: string) {
@@ -163,13 +92,127 @@ function downloadBlob(blob: Blob, filename: string) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
 
-async function encodeMp4(
-  canvas: HTMLCanvasElement,
-  draw: (time: number) => void,
-  duration: number,
-  fps: number,
+function gifBlob(bytes: Uint8Array) {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return new Blob([copy.buffer], { type: "image/gif" });
+}
+
+async function recordPromo(
+  pages: ImageBitmap[],
+  pageW: number,
+  pageH: number,
+  format: PromoFormat,
   onProgress: (value: number) => void,
 ) {
+  const size = format === "gif" ? 720 : 1080;
+  const { leafW, leafH } = bookSize(pageW, pageH, size);
+  const urls = await bitmapUrls(pages);
+  const host = document.createElement("div");
+  host.className = "promo-flip-host";
+  host.style.width = `${leafW * 2}px`;
+  host.style.height = `${leafH}px`;
+  document.body.appendChild(host);
+
+  const out = document.createElement("canvas");
+  out.width = size;
+  out.height = size;
+  const ctx = out.getContext("2d", { alpha: false, willReadFrequently: format === "gif" });
+  if (!ctx) throw new Error("Canvas niet beschikbaar");
+
+  let book: PageFlip | null = null;
+  try {
+    await preload(urls);
+    book = new PageFlip(host, {
+      width: leafW,
+      height: leafH,
+      size: "fixed",
+      drawShadow: true,
+      flippingTime: FLIP_MS,
+      usePortrait: false,
+      autoSize: false,
+      maxShadowOpacity: 0.55,
+      showCover: true,
+      useMouseEvents: false,
+      showPageCorners: false,
+      mobileScrollSupport: false,
+    });
+    await new Promise<void>((resolve) => {
+      book?.on("init", () => resolve());
+      book?.loadFromImages(urls);
+    });
+    await wait(250);
+    const src = host.querySelector("canvas");
+    if (!src) throw new Error("Flipbook-canvas ontbreekt.");
+    src.width = leafW * 2;
+    src.height = leafH;
+    book.update();
+    await wait(80);
+
+    let hideCoverLeft = true;
+    const paint = () => {
+      paintBook(ctx, src, size);
+      if (!hideCoverLeft) return;
+      const x = (size - src.width) / 2;
+      const y = (size - src.height) / 2;
+      ctx.fillStyle = BG;
+      ctx.fillRect(x, y, Math.ceil(src.width / 2), src.height);
+    };
+    paint();
+
+    const wrapFlip = (flip: () => Promise<void>) => async () => {
+      hideCoverLeft = false;
+      await flip();
+    };
+
+    if (format === "mp4") {
+      return await encodeMp4FromBook(out, paint, book, wrapFlip, onProgress);
+    }
+    return await encodeGifFromBook(out, paint, book, wrapFlip, onProgress);
+  } finally {
+    try {
+      book?.destroy();
+    } catch {
+      /* ignore */
+    }
+    host.remove();
+    for (const url of urls) URL.revokeObjectURL(url);
+  }
+}
+
+async function waitForFlip() {
+  await wait(FLIP_MS + 60);
+}
+
+async function playTurns(book: PageFlip, onHold: (seconds: number) => Promise<void>, onFlip: () => Promise<void>, onProgress: (value: number) => void) {
+  const total = book.getPageCount();
+  const flips = Math.max(0, Math.min(5, Math.ceil((total - 1) / 2)));
+  const steps = flips * 2 + 1;
+  let step = 0;
+  const mark = () => {
+    step += 1;
+    onProgress(step / steps);
+  };
+
+  await onHold(HOLD_COVER);
+  mark();
+  for (let i = 0; i < flips; i += 1) {
+    if (book.getCurrentPageIndex() >= total - 1) break;
+    await onFlip();
+    mark();
+    await onHold(i === flips - 1 ? HOLD_END : HOLD_SPREAD);
+    mark();
+  }
+}
+
+async function encodeMp4FromBook(
+  canvas: HTMLCanvasElement,
+  paint: () => void,
+  book: PageFlip,
+  wrapFlip: (flip: () => Promise<void>) => () => Promise<void>,
+  onProgress: (value: number) => void,
+) {
+  const fps = 30;
   const format = new Mp4OutputFormat({ fastStart: "in-memory" });
   const supported = format.getSupportedVideoCodecs();
   const preferred = ["avc" as const, "hevc" as const, ...supported.filter((codec) => codec !== "avc" && codec !== "hevc")];
@@ -184,54 +227,89 @@ async function encodeMp4(
   const source = new CanvasSource(canvas, { codec, quality: QUALITY_HIGH });
   output.addVideoTrack(source, { frameRate: fps });
   await output.start();
-  const frames = Math.max(1, Math.round(duration * fps));
-  const frameDur = 1 / fps;
-  for (let i = 0; i < frames; i += 1) {
-    draw(Math.min(duration, i / fps));
-    await source.add(i * frameDur, frameDur, { keyFrame: i % fps === 0 });
-    if (i % 6 === 0) {
-      onProgress(i / frames);
-      await new Promise((resolve) => window.setTimeout(resolve, 0));
-    }
-  }
+  let time = 0;
+
+  const add = async (duration: number) => {
+    paint();
+    await source.add(time, duration, { keyFrame: time < 0.05 || Math.round(time * fps) % fps === 0 });
+    time += duration;
+  };
+
+  await playTurns(
+    book,
+    (seconds) => add(seconds),
+    wrapFlip(async () => {
+      const start = time;
+      const t0 = performance.now();
+      let last = 0;
+      const turning = waitForFlip();
+      book.flipNext("bottom");
+      while (performance.now() - t0 < FLIP_MS + 120) {
+        await frame();
+        const elapsed = (performance.now() - t0) / 1000;
+        if (elapsed - last < 1 / fps - 0.002) continue;
+        paint();
+        await source.add(start + last, elapsed - last);
+        last = elapsed;
+      }
+      await turning;
+      time = start + Math.max(last, FLIP_MS / 1000);
+    }),
+    onProgress,
+  );
+
   await output.finalize();
   if (!target.buffer) throw new Error("MP4 kon niet worden afgerond.");
   return new Blob([target.buffer], { type: "video/mp4" });
 }
 
-async function encodeGif(
-  sourceCanvas: HTMLCanvasElement,
-  draw: (time: number) => void,
-  duration: number,
+async function encodeGifFromBook(
+  canvas: HTMLCanvasElement,
+  paint: () => void,
+  book: PageFlip,
+  wrapFlip: (flip: () => Promise<void>) => () => Promise<void>,
   onProgress: (value: number) => void,
 ) {
-  const fps = 12;
-  const size = 540;
-  const canvas = document.createElement("canvas");
-  canvas.width = size;
-  canvas.height = size;
+  const gif = GIFEncoder();
+  const { width, height } = canvas;
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   if (!ctx) throw new Error("Canvas niet beschikbaar");
-  const gif = GIFEncoder();
-  const frames = Math.max(1, Math.round(duration * fps));
-  const delay = Math.round(1000 / fps);
-  for (let i = 0; i < frames; i += 1) {
-    draw(Math.min(duration, i / fps));
-    ctx.drawImage(sourceCanvas, 0, 0, size, size);
-    const { data } = ctx.getImageData(0, 0, size, size);
-    const palette = quantize(data, 128, { format: "rgb444" });
+  let first = true;
+
+  const write = (delay: number) => {
+    paint();
+    const { data } = ctx.getImageData(0, 0, width, height);
+    const palette = quantize(data, 160, { format: "rgb444" });
     const index = applyPalette(data, palette, "rgb444");
-    gif.writeFrame(index, size, size, { palette, delay, repeat: i === 0 ? 0 : undefined });
-    if (i % 3 === 0) {
-      onProgress(i / frames);
-      await new Promise((resolve) => window.setTimeout(resolve, 0));
-    }
-  }
+    gif.writeFrame(index, width, height, { palette, delay, repeat: first ? 0 : undefined });
+    first = false;
+  };
+
+  await playTurns(
+    book,
+    async (seconds) => {
+      write(Math.round(seconds * 1000));
+      await wait(20);
+    },
+    wrapFlip(async () => {
+      const t0 = performance.now();
+      let last = 0;
+      const turning = waitForFlip();
+      book.flipNext("bottom");
+      while (performance.now() - t0 < FLIP_MS + 120) {
+        await frame();
+        const elapsed = performance.now() - t0;
+        if (elapsed - last < 70) continue;
+        write(Math.round(elapsed - last));
+        last = elapsed;
+      }
+      await turning;
+    }),
+    onProgress,
+  );
+
   gif.finish();
-  const bytes = gif.bytes();
-  const copy = new Uint8Array(bytes.byteLength);
-  copy.set(bytes);
-  return new Blob([copy.buffer], { type: "image/gif" });
+  return gifBlob(gif.bytes());
 }
 
 export async function downloadPromoClip(input: {
@@ -242,22 +320,6 @@ export async function downloadPromoClip(input: {
   format: PromoFormat;
   onProgress?: (value: number) => void;
 }) {
-  const scenes = buildPromoScenes(input.pages);
-  const duration = promoDuration(scenes);
-  const size = input.format === "gif" ? 720 : 1080;
-  const canvas = document.createElement("canvas");
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext("2d", { alpha: false });
-  if (!ctx) throw new Error("Canvas niet beschikbaar");
-  const draw = (time: number) => {
-    const { scene, local } = sceneAt(scenes, time);
-    drawScene(ctx, scene, local, size, size, input.pageWidth, input.pageHeight);
-  };
-  const report = input.onProgress ?? (() => undefined);
-  const blob =
-    input.format === "mp4"
-      ? await encodeMp4(canvas, draw, duration, 30, report)
-      : await encodeGif(canvas, draw, duration, report);
+  const blob = await recordPromo(input.pages, input.pageWidth, input.pageHeight, input.format, input.onProgress ?? (() => undefined));
   downloadBlob(blob, `${input.filename}.${input.format}`);
 }

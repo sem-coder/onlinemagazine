@@ -46,7 +46,7 @@ export function PromoDownload({ magazine }: { magazine: Magazine }) {
     <div>
       <p className="text-sm font-semibold">Advertentieclip</p>
       <p className="mt-1 text-sm text-ink/60">
-        Korte video waarin de brochure automatisch doorbladert. MP4 is klaar voor Meta; GIF is kleiner en universeel.
+        Korte video waarin de brochure écht omslaat, zoals in de viewer. MP4 is klaar voor Meta; GIF is kleiner en universeel.
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
         <button
