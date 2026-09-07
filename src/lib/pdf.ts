@@ -290,6 +290,50 @@ export async function renderPdf(
   };
 }
 
+export async function renderPromoPages(
+  file: File | ArrayBuffer,
+  maxPages = 10,
+  cssWidth = 540,
+  cssHeight = 760,
+  onProgress?: (progress: PdfProgress) => void,
+) {
+  const pdf = await openPdf(file);
+  const peekCount = Math.min(pdf.numPages, 4);
+  const peekSizes: PageSize[] = [];
+  for (let index = 1; index <= peekCount; index += 1) {
+    const page = await pdf.getPage(index);
+    const viewport = page.getViewport({ scale: 1 });
+    peekSizes.push({ width: viewport.width, height: viewport.height });
+  }
+  const plan = planPdfPages(peekSizes);
+  const fitted: FittedPage = {
+    pageWidth: cssWidth,
+    pageHeight: cssHeight,
+    single: false,
+  };
+  const limit = Math.max(1, Math.min(maxPages, MAX_FLIP_PAGES));
+  const pages: ImageBitmap[] = [];
+
+  for (let index = 1; index <= pdf.numPages && pages.length < limit; index += 1) {
+    const page = await pdf.getPage(index);
+    const viewport = page.getViewport({ scale: 1 });
+    const size = { width: viewport.width, height: viewport.height };
+    const blobs = await renderPdfPage(page, size, plan, fitted);
+    for (const blob of blobs) {
+      pages.push(await createImageBitmap(blob));
+      onProgress?.({ current: pages.length, total: limit });
+      if (pages.length >= limit) break;
+    }
+  }
+
+  if (pages.length === 0) throw new Error("PDF heeft geen pagina's");
+  return {
+    pages,
+    pageWidth: plan.leaf.width,
+    pageHeight: plan.leaf.height,
+  };
+}
+
 export function revokePages(pages: string[]) {
   for (const url of pages) URL.revokeObjectURL(url);
 }

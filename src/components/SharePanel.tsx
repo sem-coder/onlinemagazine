@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { PromoDownload } from "@/components/PromoDownload";
 import type { Magazine } from "@/lib/types";
 
 export function shareUrl(magazine: Magazine, origin: string) {
@@ -16,9 +17,11 @@ export function embedCode(magazine: Magazine, origin: string) {
 export function SharePanel({
   magazine,
   canDownload = false,
+  showPromo = false,
 }: {
   magazine: Magazine;
   canDownload?: boolean;
+  showPromo?: boolean;
 }) {
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   const link = useMemo(
@@ -82,6 +85,7 @@ export function SharePanel({
           </a>
         </div>
       ) : null}
+      {showPromo ? <PromoDownload magazine={magazine} /> : null}
     </div>
   );
 }

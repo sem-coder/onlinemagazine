@@ -45,6 +45,7 @@ export const PLANS: Plan[] = [
       "Onbeperkt flipbooks",
       "Geen PDFmagazine.nl-branding",
       "Embed + QR + download",
+      "Advertentieclip (MP4/GIF)",
       "10 GB opslag",
       "3 gebruikers",
     ],

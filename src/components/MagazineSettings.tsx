@@ -118,7 +118,7 @@ export function MagazineSettings({ magazine, plan }: { magazine: Magazine; plan:
           </div>
           {message ? <p className="text-sm text-ink/60">{message}</p> : null}
         </div>
-        <SharePanel magazine={{ ...magazine, title, slug }} canDownload={canUse(plan, "download")} />
+        <SharePanel magazine={{ ...magazine, title, slug }} canDownload={canUse(plan, "download")} showPromo />
       </div>
 
       <section className="rounded-2xl bg-white p-5 ring-1 ring-black/5">
