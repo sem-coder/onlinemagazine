@@ -12,10 +12,11 @@ import { GIFEncoder, applyPalette, quantize } from "gifenc";
 export type PromoFormat = "mp4" | "gif";
 
 const BG = "#1b1d1c";
-const HOLD_COVER = 1.05;
+const HOLD_COVER = 1.15;
 const HOLD_SPREAD = 0.72;
 const HOLD_END = 1.35;
-const FLIP_MS = 900;
+const FLIP_MS = 1000;
+const FPS = 30;
 
 function wait(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -81,6 +82,23 @@ function paintBook(out: CanvasRenderingContext2D, src: HTMLCanvasElement, size: 
   out.restore();
 }
 
+function cloneFrame(source: HTMLCanvasElement) {
+  const frame = document.createElement("canvas");
+  frame.width = source.width;
+  frame.height = source.height;
+  const ctx = frame.getContext("2d", { alpha: false });
+  if (!ctx) throw new Error("Canvas niet beschikbaar");
+  ctx.drawImage(source, 0, 0);
+  return frame;
+}
+
+function coverMask(progress: number) {
+  if (progress <= 0) return 1;
+  if (progress >= 1) return 0;
+  if (progress < 0.42) return 1;
+  return Math.max(0, 1 - (progress - 0.42) / 0.22);
+}
+
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
@@ -141,34 +159,64 @@ async function recordPromo(
       book?.on("init", () => resolve());
       book?.loadFromImages(urls);
     });
-    await wait(250);
+    await wait(400);
+    for (let i = 0; i < 8; i += 1) await frame();
+    if (!book) throw new Error("Flipbook kon niet worden gestart.");
+    const flipbook = book;
+    const count = flipbook.getPageCount();
+    for (let i = 0; i < count; i += 1) flipbook.getPage(i).setDensity("soft");
     const src = host.querySelector("canvas");
     if (!src) throw new Error("Flipbook-canvas ontbreekt.");
-    src.width = leafW * 2;
-    src.height = leafH;
-    book.update();
-    await wait(80);
+    if (src.width !== leafW * 2) src.width = leafW * 2;
+    if (src.height !== leafH) src.height = leafH;
+    flipbook.update();
+    await wait(120);
+    await frame();
 
-    let hideCoverLeft = true;
+    let firstOpen = true;
+    let flipProgress = 0;
     const paint = () => {
       paintBook(ctx, src, size);
-      if (!hideCoverLeft) return;
+      const mask = firstOpen ? coverMask(flipProgress) : 0;
+      if (mask <= 0) return;
       const x = (size - src.width) / 2;
       const y = (size - src.height) / 2;
+      ctx.save();
+      ctx.globalAlpha = mask;
       ctx.fillStyle = BG;
       ctx.fillRect(x, y, Math.ceil(src.width / 2), src.height);
+      ctx.restore();
     };
     paint();
 
-    const wrapFlip = (flip: () => Promise<void>) => async () => {
-      hideCoverLeft = false;
-      await flip();
+    const captureFlip = async () => {
+      flipProgress = 0;
+      const snaps: HTMLCanvasElement[] = [];
+      const t0 = performance.now();
+      let last = -100;
+      const turning = waitForFlip();
+      flipbook.flipNext("bottom");
+      while (performance.now() - t0 < FLIP_MS + 80) {
+        await frame();
+        const elapsed = performance.now() - t0;
+        if (elapsed - last < 1000 / FPS - 2) continue;
+        flipProgress = Math.min(1, elapsed / FLIP_MS);
+        paint();
+        snaps.push(cloneFrame(out));
+        last = elapsed;
+      }
+      await turning;
+      firstOpen = false;
+      flipProgress = 1;
+      paint();
+      snaps.push(cloneFrame(out));
+      return snaps;
     };
 
     if (format === "mp4") {
-      return await encodeMp4FromBook(out, paint, book, wrapFlip, onProgress);
+      return await encodeMp4FromBook(out, paint, flipbook, captureFlip, onProgress);
     }
-    return await encodeGifFromBook(out, paint, book, wrapFlip, onProgress);
+    return await encodeGifFromBook(out, paint, flipbook, captureFlip, onProgress);
   } finally {
     try {
       book?.destroy();
@@ -184,7 +232,12 @@ async function waitForFlip() {
   await wait(FLIP_MS + 60);
 }
 
-async function playTurns(book: PageFlip, onHold: (seconds: number) => Promise<void>, onFlip: () => Promise<void>, onProgress: (value: number) => void) {
+async function playTurns(
+  book: PageFlip,
+  onHold: (seconds: number) => Promise<void>,
+  onFlip: () => Promise<void>,
+  onProgress: (value: number) => void,
+) {
   const total = book.getPageCount();
   const flips = Math.max(0, Math.min(5, Math.ceil((total - 1) / 2)));
   const steps = flips * 2 + 1;
@@ -209,10 +262,9 @@ async function encodeMp4FromBook(
   canvas: HTMLCanvasElement,
   paint: () => void,
   book: PageFlip,
-  wrapFlip: (flip: () => Promise<void>) => () => Promise<void>,
+  captureFlip: () => Promise<HTMLCanvasElement[]>,
   onProgress: (value: number) => void,
 ) {
-  const fps = 30;
   const format = new Mp4OutputFormat({ fastStart: "in-memory" });
   const supported = format.getSupportedVideoCodecs();
   const preferred = ["avc" as const, "hevc" as const, ...supported.filter((codec) => codec !== "avc" && codec !== "hevc")];
@@ -225,36 +277,36 @@ async function encodeMp4FromBook(
   const target = new BufferTarget();
   const output = new Output({ format, target });
   const source = new CanvasSource(canvas, { codec, quality: QUALITY_HIGH });
-  output.addVideoTrack(source, { frameRate: fps });
+  output.addVideoTrack(source, { frameRate: FPS });
   await output.start();
   let time = 0;
+  const ctx = canvas.getContext("2d", { alpha: false });
+  if (!ctx) throw new Error("Canvas niet beschikbaar");
 
-  const add = async (duration: number) => {
-    paint();
-    await source.add(time, duration, { keyFrame: time < 0.05 || Math.round(time * fps) % fps === 0 });
+  const addCanvas = async (frameCanvas: HTMLCanvasElement, duration = 1 / FPS, keyFrame = false) => {
+    ctx.drawImage(frameCanvas, 0, 0);
+    await source.add(time, duration, { keyFrame: keyFrame || time < 0.05 || Math.round(time * FPS) % FPS === 0 });
     time += duration;
+  };
+
+  const addHold = async (seconds: number) => {
+    paint();
+    const frames = Math.max(1, Math.round(seconds * FPS));
+    const snap = cloneFrame(canvas);
+    for (let i = 0; i < frames; i += 1) {
+      await addCanvas(snap, 1 / FPS, i === 0);
+    }
   };
 
   await playTurns(
     book,
-    (seconds) => add(seconds),
-    wrapFlip(async () => {
-      const start = time;
-      const t0 = performance.now();
-      let last = 0;
-      const turning = waitForFlip();
-      book.flipNext("bottom");
-      while (performance.now() - t0 < FLIP_MS + 120) {
-        await frame();
-        const elapsed = (performance.now() - t0) / 1000;
-        if (elapsed - last < 1 / fps - 0.002) continue;
-        paint();
-        await source.add(start + last, elapsed - last);
-        last = elapsed;
+    addHold,
+    async () => {
+      const snaps = await captureFlip();
+      for (let i = 0; i < snaps.length; i += 1) {
+        await addCanvas(snaps[i], 1 / FPS, i === 0);
       }
-      await turning;
-      time = start + Math.max(last, FLIP_MS / 1000);
-    }),
+    },
     onProgress,
   );
 
@@ -267,7 +319,7 @@ async function encodeGifFromBook(
   canvas: HTMLCanvasElement,
   paint: () => void,
   book: PageFlip,
-  wrapFlip: (flip: () => Promise<void>) => () => Promise<void>,
+  captureFlip: () => Promise<HTMLCanvasElement[]>,
   onProgress: (value: number) => void,
 ) {
   const gif = GIFEncoder();
@@ -276,8 +328,8 @@ async function encodeGifFromBook(
   if (!ctx) throw new Error("Canvas niet beschikbaar");
   let first = true;
 
-  const write = (delay: number) => {
-    paint();
+  const writeCanvas = (frameCanvas: HTMLCanvasElement, delay: number) => {
+    ctx.drawImage(frameCanvas, 0, 0);
     const { data } = ctx.getImageData(0, 0, width, height);
     const palette = quantize(data, 160, { format: "rgb444" });
     const index = applyPalette(data, palette, "rgb444");
@@ -288,23 +340,14 @@ async function encodeGifFromBook(
   await playTurns(
     book,
     async (seconds) => {
-      write(Math.round(seconds * 1000));
-      await wait(20);
+      paint();
+      writeCanvas(canvas, Math.round(seconds * 1000));
     },
-    wrapFlip(async () => {
-      const t0 = performance.now();
-      let last = 0;
-      const turning = waitForFlip();
-      book.flipNext("bottom");
-      while (performance.now() - t0 < FLIP_MS + 120) {
-        await frame();
-        const elapsed = performance.now() - t0;
-        if (elapsed - last < 70) continue;
-        write(Math.round(elapsed - last));
-        last = elapsed;
-      }
-      await turning;
-    }),
+    async () => {
+      const snaps = await captureFlip();
+      const delay = Math.round(1000 / FPS);
+      for (const snap of snaps) writeCanvas(snap, delay);
+    },
     onProgress,
   );
 

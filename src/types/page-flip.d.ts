@@ -39,6 +39,7 @@ declare module "page-flip" {
     turnToPrevPage(): void;
     getPageCount(): number;
     getCurrentPageIndex(): number;
+    getPage(pageIndex: number): { setDensity(density: "soft" | "hard"): void };
     getOrientation(): "portrait" | "landscape";
     on(
       event: "flip" | "changeState" | "changeOrientation" | "init" | "update",

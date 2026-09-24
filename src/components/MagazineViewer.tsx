@@ -295,7 +295,7 @@ export function MagazineViewer({
                 Sluiten
               </button>
             </div>
-            <SharePanel magazine={magazine} />
+            <SharePanel magazine={magazine} showPromo />
           </div>
         </div>
       ) : null}

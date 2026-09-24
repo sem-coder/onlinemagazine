@@ -17,7 +17,7 @@ export function embedCode(magazine: Magazine, origin: string) {
 export function SharePanel({
   magazine,
   canDownload = false,
-  showPromo = false,
+  showPromo = true,
 }: {
   magazine: Magazine;
   canDownload?: boolean;
@@ -54,15 +54,6 @@ export function SharePanel({
         </div>
       </div>
       <div>
-        <p className="text-sm font-semibold">QR-code</p>
-        <p className="mt-1 text-sm text-ink/60">Scan om het magazine te openen.</p>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={qr} alt={`QR-code voor ${magazine.title}`} className="mt-3 h-40 w-40 rounded-md bg-white p-2 ring-1 ring-black/10" />
-        <a href={qr} download={`${magazine.slug}-qr.png`} className="mt-2 inline-block text-sm text-green">
-          Download QR
-        </a>
-      </div>
-      <div>
         <p className="text-sm font-semibold">Embed op je website</p>
         <p className="mt-1 text-sm text-ink/60">
           Kopieer de hele code, inclusief de buitenste div. Plak in een HTML-blok, niet in het iframe-blok van WordPress.
@@ -73,6 +64,16 @@ export function SharePanel({
           {copied === "embed" ? "Gekopieerd" : "Kopieer embed-code"}
         </button>
       </div>
+      <div>
+        <p className="text-sm font-semibold">QR-code</p>
+        <p className="mt-1 text-sm text-ink/60">Scan om het magazine te openen.</p>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={qr} alt={`QR-code voor ${magazine.title}`} className="mt-3 h-40 w-40 rounded-md bg-white p-2 ring-1 ring-black/10" />
+        <a href={qr} download={`${magazine.slug}-qr.png`} className="mt-2 inline-block text-sm text-green">
+          Download QR
+        </a>
+      </div>
+      {showPromo ? <PromoDownload magazine={magazine} /> : null}
       {canDownload ? (
         <div>
           <p className="text-sm font-semibold">Download PDF</p>
@@ -85,7 +86,6 @@ export function SharePanel({
           </a>
         </div>
       ) : null}
-      {showPromo ? <PromoDownload magazine={magazine} /> : null}
     </div>
   );
 }
