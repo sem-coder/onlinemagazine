@@ -21,8 +21,6 @@ export function CoverMockupDownload({ magazine }: { magazine: Magazine }) {
       pages.push(...rendered.pages);
       await downloadCoverMockup({
         pages: rendered.pages,
-        pageWidth: rendered.pageWidth,
-        pageHeight: rendered.pageHeight,
         filename: `${magazine.slug || magazine.id}-cover`,
       });
       setMessage("Gedownload. PNG is klaar voor socials en ads.");

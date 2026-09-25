@@ -1,92 +1,93 @@
 type Pt = { x: number; y: number };
-type Vec3 = { x: number; y: number; z: number };
-type Quad = { tl: Vec3; tr: Vec3; br: Vec3; bl: Vec3 };
 type Tex = CanvasImageSource & { width: number; height: number };
+type Quad = { tl: Pt; tr: Pt; br: Pt; bl: Pt };
 
-const BG = "#050505";
-const WIDTH = 1920;
-const HEIGHT = 1080;
-const COLS = 40;
-const ROWS = 28;
+const TEMPLATE_SRC = "/mockups/brochure.jpg";
+const TEMPLATE_W = 1024;
+const TEMPLATE_H = 606;
+const OUT_W = 1920;
+const OUT_H = Math.round((OUT_W * TEMPLATE_H) / TEMPLATE_W);
+const COLS = 42;
+const ROWS = 30;
 
-function lerp(a: Pt, b: Pt, t: number): Pt {
-  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+const COVER: Quad = {
+  tl: { x: 158, y: 46 },
+  tr: { x: 400, y: 74 },
+  br: { x: 418, y: 476 },
+  bl: { x: 112, y: 452 },
+};
+
+const LEFT: Quad = {
+  tl: { x: 398, y: 90 },
+  tr: { x: 546, y: 118 },
+  br: { x: 558, y: 478 },
+  bl: { x: 356, y: 508 },
+};
+
+const RIGHT: Quad = {
+  tl: { x: 546, y: 118 },
+  tr: { x: 805, y: 70 },
+  br: { x: 874, y: 411 },
+  bl: { x: 558, y: 478 },
+};
+
+function scaleQuad(quad: Quad, sx: number, sy: number): Quad {
+  const map = (p: Pt): Pt => ({ x: p.x * sx, y: p.y * sy });
+  return { tl: map(quad.tl), tr: map(quad.tr), br: map(quad.br), bl: map(quad.bl) };
 }
 
-function bilinear(tl: Pt, tr: Pt, br: Pt, bl: Pt, u: number, v: number): Pt {
-  return lerp(lerp(tl, tr, u), lerp(bl, br, u), v);
-}
-
-function rotX(p: Vec3, a: number): Vec3 {
-  const c = Math.cos(a);
-  const s = Math.sin(a);
-  return { x: p.x, y: p.y * c - p.z * s, z: p.y * s + p.z * c };
-}
-
-function rotY(p: Vec3, a: number): Vec3 {
-  const c = Math.cos(a);
-  const s = Math.sin(a);
-  return { x: p.x * c + p.z * s, y: p.y, z: -p.x * s + p.z * c };
-}
-
-function add(a: Vec3, b: Vec3): Vec3 {
-  return { x: a.x + b.x, y: a.y + b.y, z: a.z + b.z };
-}
-
-function project(p: Vec3): Pt {
-  const depth = 3.55 - p.z;
-  const f = 2.55;
-  return { x: (p.x * f) / depth, y: (-p.y * f) / depth };
-}
-
-function mapPage(local: Vec3, open: number, pitch: number, yaw: number, origin: Vec3): Vec3 {
-  return add(rotY(rotX(rotY(local, open), pitch), yaw), origin);
-}
-
-function pageQuad(width: number, height: number, x0: number, x1: number, open: number, pitch: number, yaw: number, origin: Vec3): Quad {
-  const y0 = height / 2;
-  const y1 = -height / 2;
-  const corner = (x: number, y: number): Vec3 => mapPage({ x, y, z: 0 }, open, pitch, yaw, origin);
-  return {
-    tl: corner(x0, y0),
-    tr: corner(x1, y0),
-    br: corner(x1, y1),
-    bl: corner(x0, y1),
-  };
-}
-
-function screenQuad(quad: Quad, fit: (p: Pt) => Pt) {
-  return {
-    tl: fit(project(quad.tl)),
-    tr: fit(project(quad.tr)),
-    br: fit(project(quad.br)),
-    bl: fit(project(quad.bl)),
-  };
-}
-
-function makeFitter(points: Pt[], width: number, height: number, pad: number) {
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  for (const p of points) {
-    minX = Math.min(minX, p.x);
-    minY = Math.min(minY, p.y);
-    maxX = Math.max(maxX, p.x);
-    maxY = Math.max(maxY, p.y);
+function solve(A: number[][], b: number[]) {
+  const n = b.length;
+  const m = A.map((row, i) => [...row, b[i]]);
+  for (let i = 0; i < n; i += 1) {
+    let pivot = i;
+    for (let r = i + 1; r < n; r += 1) {
+      if (Math.abs(m[r][i]) > Math.abs(m[pivot][i])) pivot = r;
+    }
+    [m[i], m[pivot]] = [m[pivot], m[i]];
+    const div = m[i][i] || 1e-12;
+    for (let c = i; c <= n; c += 1) m[i][c] /= div;
+    for (let r = 0; r < n; r += 1) {
+      if (r === i) continue;
+      const f = m[r][i];
+      for (let c = i; c <= n; c += 1) m[r][c] -= f * m[i][c];
+    }
   }
-  const scale = Math.min((width - pad * 2) / Math.max(0.01, maxX - minX), (height - pad * 2) / Math.max(0.01, maxY - minY));
-  const cx = (minX + maxX) / 2;
-  const cy = (minY + maxY) / 2;
-  return (p: Pt): Pt => ({
-    x: width / 2 + (p.x - cx) * scale,
-    y: height / 2 + (p.y - cy) * scale,
-  });
+  return m.map((row) => row[n]);
 }
 
-function drawTexturedQuad(ctx: CanvasRenderingContext2D, image: Tex, tl: Pt, tr: Pt, br: Pt, bl: Pt) {
+function homography(dest: Quad) {
+  const src = [
+    { x: 0, y: 0 },
+    { x: 1, y: 0 },
+    { x: 1, y: 1 },
+    { x: 0, y: 1 },
+  ];
+  const dst = [dest.tl, dest.tr, dest.br, dest.bl];
+  const A: number[][] = [];
+  const b: number[] = [];
+  for (let i = 0; i < 4; i += 1) {
+    const { x, y } = src[i];
+    const { x: u, y: v } = dst[i];
+    A.push([x, y, 1, 0, 0, 0, -u * x, -u * y]);
+    b.push(u);
+    A.push([0, 0, 0, x, y, 1, -v * x, -v * y]);
+    b.push(v);
+  }
+  const h = solve(A, b);
+  return [...h, 1];
+}
+
+function applyH(h: number[], x: number, y: number): Pt {
+  const w = h[6] * x + h[7] * y + h[8] || 1e-12;
+  return { x: (h[0] * x + h[1] * y + h[2]) / w, y: (h[3] * x + h[4] * y + h[5]) / w };
+}
+
+function drawTexturedQuad(ctx: CanvasRenderingContext2D, image: Tex, quad: Quad) {
+  const { tl, tr, br, bl } = quad;
   const imgW = image.width;
   const imgH = image.height;
+  const h = homography(quad);
   ctx.save();
   ctx.beginPath();
   ctx.moveTo(tl.x, tl.y);
@@ -97,17 +98,17 @@ function drawTexturedQuad(ctx: CanvasRenderingContext2D, image: Tex, tl: Pt, tr:
   ctx.clip();
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
-  const padU = 1.15 / COLS;
-  const padV = 1.15 / ROWS;
+  const padU = 1.2 / COLS;
+  const padV = 1.2 / ROWS;
   for (let y = 0; y < ROWS; y += 1) {
     const v0 = Math.max(0, y / ROWS - padV);
     const v1 = Math.min(1, (y + 1) / ROWS + padV);
     for (let x = 0; x < COLS; x += 1) {
       const u0 = Math.max(0, x / COLS - padU);
       const u1 = Math.min(1, (x + 1) / COLS + padU);
-      const p00 = bilinear(tl, tr, br, bl, u0, v0);
-      const p10 = bilinear(tl, tr, br, bl, u1, v0);
-      const p01 = bilinear(tl, tr, br, bl, u0, v1);
+      const p00 = applyH(h, u0, v0);
+      const p10 = applyH(h, u1, v0);
+      const p01 = applyH(h, u0, v1);
       const sx = u0 * imgW;
       const sy = v0 * imgH;
       const sw = Math.max(1, (u1 - u0) * imgW);
@@ -121,63 +122,27 @@ function drawTexturedQuad(ctx: CanvasRenderingContext2D, image: Tex, tl: Pt, tr:
   ctx.restore();
 }
 
-function fillQuad(ctx: CanvasRenderingContext2D, tl: Pt, tr: Pt, br: Pt, bl: Pt, fill: string) {
-  ctx.beginPath();
-  ctx.moveTo(tl.x, tl.y);
-  ctx.lineTo(tr.x, tr.y);
-  ctx.lineTo(br.x, br.y);
-  ctx.lineTo(bl.x, bl.y);
-  ctx.closePath();
-  ctx.fillStyle = fill;
-  ctx.fill();
-}
-
-function gradientTex(horizontal: boolean, stops: Array<[number, string]>) {
-  const canvas = document.createElement("canvas");
-  canvas.width = horizontal ? 256 : 1;
-  canvas.height = horizontal ? 1 : 256;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Canvas niet beschikbaar");
-  const gradient = horizontal ? ctx.createLinearGradient(0, 0, 256, 0) : ctx.createLinearGradient(0, 0, 0, 256);
-  for (const [at, color] of stops) gradient.addColorStop(at, color);
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  return canvas;
-}
-
-function shadow(ctx: CanvasRenderingContext2D, cx: number, cy: number, rx: number, ry: number, alpha: number) {
-  const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(rx, ry));
-  gradient.addColorStop(0, `rgba(0,0,0,${alpha})`);
-  gradient.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = gradient;
-  ctx.beginPath();
-  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-function shadedTexture(image: Tex, shade: HTMLCanvasElement) {
+function shadePage(image: Tex, stops: Array<[number, string]>) {
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(2, Math.round(image.width));
   canvas.height = Math.max(2, Math.round(image.height));
   const ctx = canvas.getContext("2d", { alpha: false });
   if (!ctx) throw new Error("Canvas niet beschikbaar");
   ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+  const gradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
+  for (const [at, color] of stops) gradient.addColorStop(at, color);
   ctx.globalCompositeOperation = "multiply";
-  ctx.drawImage(shade, 0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.globalCompositeOperation = "source-over";
   return canvas;
 }
 
-function drawPage(
-  ctx: CanvasRenderingContext2D,
-  image: Tex | null,
-  screen: { tl: Pt; tr: Pt; br: Pt; bl: Pt },
-  shade: HTMLCanvasElement,
-  paper = "#f3efe8",
-) {
-  fillQuad(ctx, screen.tl, screen.tr, screen.br, screen.bl, paper);
-  if (!image) return;
-  drawTexturedQuad(ctx, shadedTexture(image, shade), screen.tl, screen.tr, screen.br, screen.bl);
+async function loadTemplate() {
+  const response = await fetch(TEMPLATE_SRC);
+  if (!response.ok) throw new Error("Mockup-achtergrond ontbreekt.");
+  const blob = await response.blob();
+  return createImageBitmap(blob);
 }
 
 function downloadBlob(blob: Blob, filename: string) {
@@ -191,111 +156,68 @@ function downloadBlob(blob: Blob, filename: string) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
 
-export async function renderCoverMockup(input: {
-  pages: ImageBitmap[];
-  pageWidth: number;
-  pageHeight: number;
-}) {
+export async function renderCoverMockup(input: { pages: ImageBitmap[] }) {
   const pages = input.pages;
   if (pages.length === 0) throw new Error("Geen pagina’s voor de mockup.");
-  const aspect = input.pageWidth / Math.max(input.pageHeight, 1);
-  const height = 1.18;
-  const width = height * Math.min(Math.max(aspect, 0.62), 0.9);
-  const cover = pages[0];
-  const leftInner = pages[1] ?? null;
-  const rightInner = pages[2] ?? pages[1] ?? null;
-  const showSpread = Boolean(leftInner || rightInner);
-
-  const coverOrigin = { x: showSpread ? -0.82 : 0, y: 0.02, z: 0.32 };
-  const spreadOrigin = { x: 0.58, y: 0, z: 0.1 };
-  const coverPitch = 0.05;
-  const coverYaw = -0.2;
-  const spreadPitch = 0.14;
-  const spreadYaw = 0.08;
-  const leftOpen = 0.5;
-  const rightOpen = -0.56;
-
-  const coverPage = pageQuad(width, height, 0, width, 0, coverPitch, coverYaw, coverOrigin);
-  const coverStack = pageQuad(width, height, width, width + 0.028, 0, coverPitch, coverYaw, coverOrigin);
-  const leftPage = pageQuad(width, height, -width, 0, leftOpen, spreadPitch, spreadYaw, spreadOrigin);
-  const rightPage = pageQuad(width, height, 0, width, rightOpen, spreadPitch, spreadYaw, spreadOrigin);
-
-  const world = showSpread
-    ? [coverPage, coverStack, leftPage, rightPage]
-    : [coverPage, coverStack];
-  const projected: Pt[] = [];
-  for (const quad of world) {
-    projected.push(project(quad.tl), project(quad.tr), project(quad.br), project(quad.bl));
-  }
-  const fit = makeFitter(projected, WIDTH, HEIGHT, showSpread ? 96 : 160);
-
+  const template = await loadTemplate();
   const canvas = document.createElement("canvas");
-  canvas.width = WIDTH;
-  canvas.height = HEIGHT;
+  canvas.width = OUT_W;
+  canvas.height = OUT_H;
   const ctx = canvas.getContext("2d", { alpha: false });
   if (!ctx) throw new Error("Canvas niet beschikbaar");
-  ctx.fillStyle = BG;
-  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  ctx.fillStyle = "#000000";
+  ctx.fillRect(0, 0, OUT_W, OUT_H);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(template, 0, 0, OUT_W, OUT_H);
 
-  const coverScreen = screenQuad(coverPage, fit);
-  const stackScreen = screenQuad(coverStack, fit);
-  const leftScreen = showSpread ? screenQuad(leftPage, fit) : null;
-  const rightScreen = showSpread ? screenQuad(rightPage, fit) : null;
+  const sx = OUT_W / TEMPLATE_W;
+  const sy = OUT_H / TEMPLATE_H;
+  const coverQ = scaleQuad(COVER, sx, sy);
+  const leftQ = scaleQuad(LEFT, sx, sy);
+  const rightQ = scaleQuad(RIGHT, sx, sy);
 
-  if (leftScreen && rightScreen) {
-    const mid = lerp(leftScreen.bl, rightScreen.br, 0.55);
-    shadow(ctx, mid.x, mid.y + 36, 340, 70, 0.55);
-  }
-  shadow(ctx, (coverScreen.bl.x + coverScreen.br.x) / 2, Math.max(coverScreen.bl.y, coverScreen.br.y) + 28, 220, 52, 0.62);
+  const cover = pages[0];
+  const left = pages[1] ?? cover;
+  const right = pages[2] ?? pages[1] ?? cover;
 
-  const coverShade = gradientTex(true, [
-    [0, "rgb(255,255,255)"],
-    [0.72, "rgb(236,236,236)"],
-    [1, "rgb(168,168,168)"],
-  ]);
-  const leftShade = gradientTex(true, [
-    [0, "rgb(210,210,210)"],
-    [0.55, "rgb(255,255,255)"],
-    [1, "rgb(118,118,118)"],
-  ]);
-  const rightShade = gradientTex(true, [
-    [0, "rgb(96,96,96)"],
-    [0.18, "rgb(170,170,170)"],
-    [0.55, "rgb(255,255,255)"],
-    [1, "rgb(230,230,230)"],
-  ]);
-
-  if (leftScreen) drawPage(ctx, leftInner, leftScreen, leftShade);
-  if (rightScreen) drawPage(ctx, rightInner, rightScreen, rightShade);
-  if (leftScreen && rightScreen) {
-    ctx.strokeStyle = "rgba(0,0,0,0.28)";
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.moveTo((leftScreen.tr.x + rightScreen.tl.x) / 2, (leftScreen.tr.y + rightScreen.tl.y) / 2);
-    ctx.lineTo((leftScreen.br.x + rightScreen.bl.x) / 2, (leftScreen.br.y + rightScreen.bl.y) / 2);
-    ctx.stroke();
-  }
-
-  fillQuad(ctx, stackScreen.tl, stackScreen.tr, stackScreen.br, stackScreen.bl, "#d8d2c8");
-  const stackInner = screenQuad(
-    pageQuad(width, height, width + 0.006, width + 0.022, 0, coverPitch, coverYaw, coverOrigin),
-    fit,
+  drawTexturedQuad(
+    ctx,
+    shadePage(left, [
+      [0, "rgb(245,245,245)"],
+      [0.82, "rgb(255,255,255)"],
+      [1, "rgb(168,168,168)"],
+    ]),
+    leftQ,
   );
-  fillQuad(ctx, stackInner.tl, stackInner.tr, stackInner.br, stackInner.bl, "#f7f4ee");
-  drawPage(ctx, cover, coverScreen, coverShade, "#fff");
+  drawTexturedQuad(
+    ctx,
+    shadePage(right, [
+      [0, "rgb(150,150,150)"],
+      [0.16, "rgb(210,210,210)"],
+      [0.55, "rgb(255,255,255)"],
+      [1, "rgb(236,236,236)"],
+    ]),
+    rightQ,
+  );
+  drawTexturedQuad(
+    ctx,
+    shadePage(cover, [
+      [0, "rgb(255,255,255)"],
+      [0.78, "rgb(245,245,245)"],
+      [1, "rgb(196,196,196)"],
+    ]),
+    coverQ,
+  );
 
+  template.close();
   const blob = await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((value) => (value ? resolve(value) : reject(new Error("PNG maken mislukt"))), "image/png");
   });
   return { canvas, blob };
 }
 
-export async function downloadCoverMockup(input: {
-  pages: ImageBitmap[];
-  pageWidth: number;
-  pageHeight: number;
-  filename: string;
-}) {
+export async function downloadCoverMockup(input: { pages: ImageBitmap[]; filename: string }) {
   const { blob } = await renderCoverMockup(input);
   downloadBlob(blob, `${input.filename}.png`);
 }
