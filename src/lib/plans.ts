@@ -46,6 +46,7 @@ export const PLANS: Plan[] = [
       "Geen PDFmagazine.nl-branding",
       "Embed + QR + download",
       "Advertentieclip (MP4/GIF)",
+      "Cover-mockup (PNG)",
       "10 GB opslag",
       "3 gebruikers",
     ],

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { CoverMockupDownload } from "@/components/CoverMockupDownload";
 import { PromoDownload } from "@/components/PromoDownload";
 import type { Magazine } from "@/lib/types";
 
@@ -73,6 +74,7 @@ export function SharePanel({
           Download QR
         </a>
       </div>
+      <CoverMockupDownload magazine={magazine} />
       {showPromo ? <PromoDownload magazine={magazine} /> : null}
       {canDownload ? (
         <div>
