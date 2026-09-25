@@ -1,6 +1,7 @@
 type Pt = { x: number; y: number };
 type Tex = CanvasImageSource & { width: number; height: number };
 type Quad = { tl: Pt; tr: Pt; br: Pt; bl: Pt };
+export type MockupKind = "cover" | "open";
 
 const TEMPLATE_SRC = "/mockups/brochure.jpg";
 const TEMPLATE_W = 1024;
@@ -17,6 +18,13 @@ const COVER: Quad = {
   bl: { x: 112, y: 452 },
 };
 
+const STACK: Quad = {
+  tl: { x: 400, y: 74 },
+  tr: { x: 452, y: 78 },
+  br: { x: 458, y: 478 },
+  bl: { x: 418, y: 476 },
+};
+
 const LEFT: Quad = {
   tl: { x: 398, y: 90 },
   tr: { x: 546, y: 118 },
@@ -30,6 +38,24 @@ const RIGHT: Quad = {
   br: { x: 874, y: 411 },
   bl: { x: 558, y: 478 },
 };
+
+const COVER_HIDE: Pt[] = [
+  { x: 48, y: 6 },
+  { x: 492, y: 12 },
+  { x: 505, y: 86 },
+  { x: 478, y: 518 },
+  { x: 40, y: 518 },
+];
+
+const OPEN_HIDE: Pt[] = [
+  { x: 396, y: 68 },
+  { x: 838, y: 36 },
+  { x: 918, y: 428 },
+  { x: 572, y: 498 },
+  { x: 328, y: 548 },
+  { x: 328, y: 488 },
+  { x: 418, y: 488 },
+];
 
 function scaleQuad(quad: Quad, sx: number, sy: number): Quad {
   const map = (p: Pt): Pt => ({ x: p.x * sx, y: p.y * sy });
@@ -81,6 +107,60 @@ function homography(dest: Quad) {
 function applyH(h: number[], x: number, y: number): Pt {
   const w = h[6] * x + h[7] * y + h[8] || 1e-12;
   return { x: (h[0] * x + h[1] * y + h[2]) / w, y: (h[3] * x + h[4] * y + h[5]) / w };
+}
+
+function paintPaperStack(ctx: CanvasRenderingContext2D, quad: Quad) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(quad.tl.x, quad.tl.y);
+  ctx.lineTo(quad.tr.x, quad.tr.y);
+  ctx.lineTo(quad.br.x, quad.br.y);
+  ctx.lineTo(quad.bl.x, quad.bl.y);
+  ctx.closePath();
+  ctx.clip();
+  const x0 = Math.min(quad.tl.x, quad.bl.x);
+  const x1 = Math.max(quad.tr.x, quad.br.x);
+  const y0 = Math.min(quad.tl.y, quad.tr.y);
+  const y1 = Math.max(quad.bl.y, quad.br.y);
+  const gradient = ctx.createLinearGradient(x0, 0, x1, 0);
+  gradient.addColorStop(0, "#ece7de");
+  gradient.addColorStop(0.2, "#fbf8f2");
+  gradient.addColorStop(0.48, "#e8e2d7");
+  gradient.addColorStop(0.78, "#fffdf8");
+  gradient.addColorStop(1, "#d9d2c6");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(x0 - 6, y0 - 6, x1 - x0 + 12, y1 - y0 + 12);
+  ctx.strokeStyle = "rgba(120,110,95,0.28)";
+  ctx.lineWidth = 1;
+  for (let i = 1; i <= 7; i += 1) {
+    const t = i / 8;
+    const top = {
+      x: quad.tl.x + (quad.tr.x - quad.tl.x) * t,
+      y: quad.tl.y + (quad.tr.y - quad.tl.y) * t,
+    };
+    const bot = {
+      x: quad.bl.x + (quad.br.x - quad.bl.x) * t,
+      y: quad.bl.y + (quad.br.y - quad.bl.y) * t,
+    };
+    ctx.beginPath();
+    ctx.moveTo(top.x, top.y);
+    ctx.lineTo(bot.x, bot.y);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function scalePts(pts: Pt[], sx: number, sy: number) {
+  return pts.map((p) => ({ x: p.x * sx, y: p.y * sy }));
+}
+
+function fillPoly(ctx: CanvasRenderingContext2D, pts: Pt[], fill: string) {
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i += 1) ctx.lineTo(pts[i].x, pts[i].y);
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
 }
 
 function drawTexturedQuad(ctx: CanvasRenderingContext2D, image: Tex, quad: Quad) {
@@ -138,6 +218,34 @@ function shadePage(image: Tex, stops: Array<[number, string]>) {
   return canvas;
 }
 
+function unionBox(quads: Quad[], pad: number) {
+  const pts = quads.flatMap((quad) => [quad.tl, quad.tr, quad.br, quad.bl]);
+  const xs = pts.map((p) => p.x);
+  const ys = pts.map((p) => p.y);
+  const x = Math.max(0, Math.min(...xs) - pad);
+  const y = Math.max(0, Math.min(...ys) - pad);
+  const r = Math.min(OUT_W, Math.max(...xs) + pad);
+  const b = Math.min(OUT_H, Math.max(...ys) + pad);
+  return { x, y, w: r - x, h: b - y };
+}
+
+function frameOnBlack(source: HTMLCanvasElement, box: { x: number; y: number; w: number; h: number }, outW: number, outH: number) {
+  const canvas = document.createElement("canvas");
+  canvas.width = outW;
+  canvas.height = outH;
+  const ctx = canvas.getContext("2d", { alpha: false });
+  if (!ctx) throw new Error("Canvas niet beschikbaar");
+  ctx.fillStyle = "#000000";
+  ctx.fillRect(0, 0, outW, outH);
+  const scale = Math.min((outW * 0.78) / box.w, (outH * 0.82) / box.h);
+  const dw = box.w * scale;
+  const dh = box.h * scale;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(source, box.x, box.y, box.w, box.h, (outW - dw) / 2, (outH - dh) / 2, dw, dh);
+  return canvas;
+}
+
 async function loadTemplate() {
   const response = await fetch(TEMPLATE_SRC);
   if (!response.ok) throw new Error("Mockup-achtergrond ontbreekt.");
@@ -156,7 +264,13 @@ function downloadBlob(blob: Blob, filename: string) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
 
-export async function renderCoverMockup(input: { pages: ImageBitmap[] }) {
+async function canvasPng(canvas: HTMLCanvasElement) {
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((value) => (value ? resolve(value) : reject(new Error("PNG maken mislukt"))), "image/png");
+  });
+}
+
+export async function renderCoverMockup(input: { pages: ImageBitmap[]; kind: MockupKind }) {
   const pages = input.pages;
   if (pages.length === 0) throw new Error("Geen pagina’s voor de mockup.");
   const template = await loadTemplate();
@@ -174,50 +288,56 @@ export async function renderCoverMockup(input: { pages: ImageBitmap[] }) {
   const sx = OUT_W / TEMPLATE_W;
   const sy = OUT_H / TEMPLATE_H;
   const coverQ = scaleQuad(COVER, sx, sy);
+  const stackQ = scaleQuad(STACK, sx, sy);
   const leftQ = scaleQuad(LEFT, sx, sy);
   const rightQ = scaleQuad(RIGHT, sx, sy);
-
   const cover = pages[0];
   const left = pages[1] ?? cover;
   const right = pages[2] ?? pages[1] ?? cover;
 
+  if (input.kind === "cover") {
+    fillPoly(ctx, scalePts(OPEN_HIDE, sx, sy), "#000000");
+    paintPaperStack(ctx, stackQ);
+    drawTexturedQuad(
+      ctx,
+      shadePage(cover, [
+        [0, "rgb(255,255,255)"],
+        [0.8, "rgb(248,248,248)"],
+        [1, "rgb(200,200,200)"],
+      ]),
+      coverQ,
+    );
+    template.close();
+    const framed = frameOnBlack(canvas, unionBox([coverQ, stackQ], 120), 1600, 1600);
+    return { canvas: framed, blob: await canvasPng(framed) };
+  }
+
+  fillPoly(ctx, scalePts(COVER_HIDE, sx, sy), "#000000");
   drawTexturedQuad(
     ctx,
     shadePage(left, [
-      [0, "rgb(245,245,245)"],
+      [0, "rgb(242,242,242)"],
       [0.82, "rgb(255,255,255)"],
-      [1, "rgb(168,168,168)"],
+      [1, "rgb(170,170,170)"],
     ]),
     leftQ,
   );
   drawTexturedQuad(
     ctx,
     shadePage(right, [
-      [0, "rgb(150,150,150)"],
-      [0.16, "rgb(210,210,210)"],
+      [0, "rgb(155,155,155)"],
+      [0.18, "rgb(215,215,215)"],
       [0.55, "rgb(255,255,255)"],
-      [1, "rgb(236,236,236)"],
+      [1, "rgb(238,238,238)"],
     ]),
     rightQ,
   );
-  drawTexturedQuad(
-    ctx,
-    shadePage(cover, [
-      [0, "rgb(255,255,255)"],
-      [0.78, "rgb(245,245,245)"],
-      [1, "rgb(196,196,196)"],
-    ]),
-    coverQ,
-  );
-
   template.close();
-  const blob = await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob((value) => (value ? resolve(value) : reject(new Error("PNG maken mislukt"))), "image/png");
-  });
-  return { canvas, blob };
+  const framed = frameOnBlack(canvas, unionBox([leftQ, rightQ], 120), 1920, 1080);
+  return { canvas: framed, blob: await canvasPng(framed) };
 }
 
-export async function downloadCoverMockup(input: { pages: ImageBitmap[]; filename: string }) {
+export async function downloadCoverMockup(input: { pages: ImageBitmap[]; filename: string; kind: MockupKind }) {
   const { blob } = await renderCoverMockup(input);
   downloadBlob(blob, `${input.filename}.png`);
 }
