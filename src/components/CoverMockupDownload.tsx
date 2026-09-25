@@ -17,7 +17,7 @@ export function CoverMockupDownload({ magazine }: { magazine: Magazine }) {
       const response = await fetch(magazine.pdfUrl || `/api/magazines/${magazine.id}/pdf`);
       if (!response.ok) throw new Error("PDF kon niet worden geladen.");
       const bytes = await response.arrayBuffer();
-      const rendered = await renderPromoPages(bytes, 3, 780, 1100);
+      const rendered = await renderPromoPages(bytes, 3, 1100, 1550);
       pages.push(...rendered.pages);
       const slug = magazine.slug || magazine.id;
       await downloadCoverMockup({
@@ -38,7 +38,7 @@ export function CoverMockupDownload({ magazine }: { magazine: Magazine }) {
     <div>
       <p className="text-sm font-semibold">Mockups</p>
       <p className="mt-1 text-sm text-ink/60">
-        Twee losse PNG’s voor socials: de cover alleen, of het magazine opengeslagen.
+        PNG van je cover of van het open magazine, als strak boek op een witte achtergrond.
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
         <button
