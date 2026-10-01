@@ -131,13 +131,15 @@ export function MagazineViewer({
 
   useEffect(() => {
     function sync() {
-      setFullscreen(isFullscreen());
+      setFullscreen(isFullscreen() || isIframeWindowFullscreen());
     }
     document.addEventListener("fullscreenchange", sync);
     document.addEventListener("webkitfullscreenchange", sync);
+    window.addEventListener("resize", sync);
     return () => {
       document.removeEventListener("fullscreenchange", sync);
       document.removeEventListener("webkitfullscreenchange", sync);
+      window.removeEventListener("resize", sync);
     };
   }, []);
 
@@ -170,18 +172,23 @@ export function MagazineViewer({
   }
 
   async function toggleFullscreen() {
-    if (isFullscreen()) {
-      await exitFullscreen();
+    const inIframe = embed && window.parent !== window;
+    if (isFullscreen() || isIframeWindowFullscreen()) {
+      if (inIframe) {
+        window.parent.postMessage({ source: "pdfmagazine", type: "toggle-fullscreen" }, "*");
+      }
+      if (isFullscreen()) await exitFullscreen();
       return;
     }
-    try {
-      await requestFullscreen(rootRef.current ?? document.documentElement);
-      if (isFullscreen()) return;
-    } catch {
-      /* iframe zonder toestemming, of iOS */
+    if (inIframe) {
+      window.parent.postMessage({ source: "pdfmagazine", type: "toggle-fullscreen" }, "*");
     }
-    if (embed) {
-      window.open(`/v/${magazine.slug || magazine.id}`, "_blank", "noopener,noreferrer");
+    try {
+      await requestFullscreen(document.documentElement);
+    } catch {
+      if (!inIframe) {
+        window.open(`/v/${magazine.slug || magazine.id}`, "_blank");
+      }
     }
   }
 
@@ -380,16 +387,23 @@ function leadDoneKey(magazineId: string) {
 
 type FsDoc = Document & {
   webkitFullscreenElement?: Element | null;
+  webkitFullscreenEnabled?: boolean;
   webkitExitFullscreen?: () => Promise<void> | void;
 };
 
 type FsEl = HTMLElement & {
   webkitRequestFullscreen?: () => Promise<void> | void;
+  webkitRequestFullScreen?: () => Promise<void> | void;
 };
 
 function isFullscreen() {
   const doc = document as FsDoc;
   return Boolean(doc.fullscreenElement || doc.webkitFullscreenElement);
+}
+
+function isIframeWindowFullscreen() {
+  if (window.parent === window) return false;
+  return window.innerHeight >= screen.height - 8 && window.innerWidth >= screen.width - 8;
 }
 
 async function requestFullscreen(el: HTMLElement) {
@@ -400,6 +414,10 @@ async function requestFullscreen(el: HTMLElement) {
   }
   if (node.webkitRequestFullscreen) {
     await node.webkitRequestFullscreen();
+    return;
+  }
+  if (node.webkitRequestFullScreen) {
+    await node.webkitRequestFullScreen();
     return;
   }
   throw new Error("Fullscreen wordt niet ondersteund.");

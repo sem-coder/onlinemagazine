@@ -12,7 +12,9 @@ export function shareUrl(magazine: Magazine, origin: string) {
 export function embedCode(magazine: Magazine, origin: string) {
   const src = `${origin}/embed/${magazine.slug || magazine.id}`;
   const title = magazine.title.replace(/"/g, "&quot;");
-  return `<div style="position:relative;width:100%;height:0;padding-top:max(640px,62.5%);overflow:hidden;background:#1b1d1c;"><iframe src="${src}" title="${title}" allow="fullscreen" allowfullscreen webkitallowfullscreen style="position:absolute;top:0;left:0;width:100% !important;height:100% !important;max-height:none !important;border:0;background:#1b1d1c;"></iframe></div>`;
+  const id = `pdfm-${String(magazine.slug || magazine.id).replace(/[^a-zA-Z0-9_-]/g, "")}`;
+  return `<div id="${id}-wrap" style="position:relative;width:100%;height:0;padding-top:max(640px,62.5%);overflow:hidden;background:#1b1d1c;"><iframe id="${id}" src="${src}" title="${title}" allow="fullscreen" allowfullscreen webkitallowfullscreen mozallowfullscreen style="position:absolute;top:0;left:0;width:100% !important;height:100% !important;max-height:none !important;border:0;background:#1b1d1c;"></iframe></div>
+<script>(function(){var iframe=document.getElementById("${id}");if(!iframe)return;window.addEventListener("message",function(event){if(!event.data||event.data.source!=="pdfmagazine"||event.source!==iframe.contentWindow)return;if(event.data.type==="toggle-fullscreen"){var current=document.fullscreenElement||document.webkitFullscreenElement;if(current===iframe){(document.exitFullscreen||document.webkitExitFullscreen).call(document);}else{var req=iframe.requestFullscreen||iframe.webkitRequestFullscreen||iframe.webkitRequestFullScreen;if(req)req.call(iframe);}}});})();</script>`;
 }
 
 export function SharePanel({
@@ -57,10 +59,10 @@ export function SharePanel({
       <div>
         <p className="text-sm font-semibold">Embed op je website</p>
         <p className="mt-1 text-sm text-ink/60">
-          Kopieer de hele code, inclusief de buitenste div. Plak in een HTML-blok, niet in het iframe-blok van WordPress.
-          Bezoekers kunnen het magazine dan full screen openen.
+          Kopieer de hele code, inclusief de buitenste div en het script. Plak in een HTML-blok, niet in het iframe-blok
+          van WordPress. Fullscreen werkt pas na deze nieuwe code.
         </p>
-        <textarea readOnly value={iframe} rows={6} className="mt-3 w-full rounded-md border border-black/10 px-3 py-2 font-mono text-xs" />
+        <textarea readOnly value={iframe} rows={8} className="mt-3 w-full rounded-md border border-black/10 px-3 py-2 font-mono text-xs" />
         <button type="button" onClick={() => void copy("embed")} className="mt-2 rounded-md bg-ink px-3 py-2 text-sm text-white">
           {copied === "embed" ? "Gekopieerd" : "Kopieer embed-code"}
         </button>
