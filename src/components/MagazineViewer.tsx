@@ -38,6 +38,7 @@ export function MagazineViewer({
   const [leadError, setLeadError] = useState<string | null>(null);
   const [leadBusy, setLeadBusy] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const [parentFullscreen, setParentFullscreen] = useState(false);
   const leadLockRef = useRef(false);
   const [layout, setLayout] = useState({
     pageWidth: magazine.pageWidth || 595,
@@ -130,6 +131,18 @@ export function MagazineViewer({
   }, []);
 
   useEffect(() => {
+    function onMessage(event: MessageEvent) {
+      if (event.source !== window.parent) return;
+      const data = event.data as { source?: string; type?: string } | null;
+      if (data?.source === "pdfmagazine" && data.type === "parent-fs-ready") {
+        setParentFullscreen(true);
+      }
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
+
+  useEffect(() => {
     function sync() {
       setFullscreen(isFullscreen() || isIframeWindowFullscreen());
     }
@@ -171,29 +184,26 @@ export function MagazineViewer({
     }
   }
 
-  async function toggleFullscreen() {
+  function toggleFullscreen() {
     const inIframe = embed && window.parent !== window;
     if (isFullscreen() || isIframeWindowFullscreen()) {
       if (inIframe) {
         window.parent.postMessage({ source: "pdfmagazine", type: "toggle-fullscreen" }, "*");
       }
-      if (isFullscreen()) await exitFullscreen();
+      if (isFullscreen()) void exitFullscreen();
       return;
     }
     if (inIframe) {
       window.parent.postMessage({ source: "pdfmagazine", type: "toggle-fullscreen" }, "*");
     }
-    try {
-      await requestFullscreen(document.documentElement);
-    } catch {
-      if (!inIframe) {
-        window.open(`/v/${magazine.slug || magazine.id}`, "_blank");
-      }
-    }
+    const node = document.documentElement as FsEl;
+    const req = node.requestFullscreen || node.webkitRequestFullscreen || node.webkitRequestFullScreen;
+    if (req) void Promise.resolve(req.call(node)).catch(() => undefined);
   }
 
   const leadCopy = leadFormFields(magazine);
   const embed = mode === "embed";
+  const hideEmbedChrome = embed && parentFullscreen;
   const totalPages = Math.max(progress.total, pages.length, magazine.pageCount);
   const loading = progress.current < totalPages || (pages.length === 0 && !error);
   const loadPercent = totalPages ? Math.min(100, Math.round((progress.current / totalPages) * 100)) : 0;
@@ -225,9 +235,9 @@ export function MagazineViewer({
         </header>
       ) : null}
 
-      {embed ? (
+      {embed && !hideEmbedChrome ? (
         <div className="absolute right-3 top-3 z-30">
-          <FullscreenButton fullscreen={fullscreen} onClick={() => void toggleFullscreen()} />
+          <FullscreenButton fullscreen={fullscreen} onClick={() => toggleFullscreen()} />
         </div>
       ) : null}
 
@@ -281,8 +291,12 @@ export function MagazineViewer({
           >
             ›
           </ToolButton>
-          <span className="mx-0.5 h-4 w-px bg-white/15" aria-hidden />
-          <FullscreenButton fullscreen={fullscreen} onClick={() => void toggleFullscreen()} compact />
+          {hideEmbedChrome ? null : (
+            <>
+              <span className="mx-0.5 h-4 w-px bg-white/15" aria-hidden />
+              <FullscreenButton fullscreen={fullscreen} onClick={() => toggleFullscreen()} compact />
+            </>
+          )}
         </div>
       </div>
 
@@ -404,23 +418,6 @@ function isFullscreen() {
 function isIframeWindowFullscreen() {
   if (window.parent === window) return false;
   return window.innerHeight >= screen.height - 8 && window.innerWidth >= screen.width - 8;
-}
-
-async function requestFullscreen(el: HTMLElement) {
-  const node = el as FsEl;
-  if (node.requestFullscreen) {
-    await node.requestFullscreen();
-    return;
-  }
-  if (node.webkitRequestFullscreen) {
-    await node.webkitRequestFullscreen();
-    return;
-  }
-  if (node.webkitRequestFullScreen) {
-    await node.webkitRequestFullScreen();
-    return;
-  }
-  throw new Error("Fullscreen wordt niet ondersteund.");
 }
 
 async function exitFullscreen() {
