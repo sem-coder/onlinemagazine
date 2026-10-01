@@ -180,7 +180,9 @@ export function MagazineViewer({
     } catch {
       /* iframe zonder toestemming, of iOS */
     }
-    window.open(`/v/${magazine.slug || magazine.id}`, "_blank", "noopener,noreferrer");
+    if (embed) {
+      window.open(`/v/${magazine.slug || magazine.id}`, "_blank", "noopener,noreferrer");
+    }
   }
 
   const leadCopy = leadFormFields(magazine);
@@ -203,25 +205,23 @@ export function MagazineViewer({
             <p className="text-sm font-medium">{magazine.title}</p>
             <p className="text-xs text-paper/50">{totalPages} pagina’s</p>
           </div>
-          <button
-            type="button"
-            onClick={() => setShare(true)}
-            className="pointer-events-auto rounded-full bg-green px-3 py-1.5 text-sm text-white"
-          >
-            Deel / embed
-          </button>
+          <div className="pointer-events-auto flex items-center gap-2">
+            <FullscreenButton fullscreen={fullscreen} onClick={() => void toggleFullscreen()} />
+            <button
+              type="button"
+              onClick={() => setShare(true)}
+              className="rounded-full bg-green px-3 py-1.5 text-sm text-white"
+            >
+              Deel / embed
+            </button>
+          </div>
         </header>
       ) : null}
 
       {embed ? (
-        <button
-          type="button"
-          onClick={() => void toggleFullscreen()}
-          className="absolute right-3 top-3 z-30 flex items-center gap-1.5 rounded-full border border-white/10 bg-black/55 px-3 py-1.5 text-xs text-paper backdrop-blur"
-        >
-          <FullscreenIcon exit={fullscreen} />
-          {fullscreen ? "Sluiten" : "Volledig scherm"}
-        </button>
+        <div className="absolute right-3 top-3 z-30">
+          <FullscreenButton fullscreen={fullscreen} onClick={() => void toggleFullscreen()} />
+        </div>
       ) : null}
 
       {loading ? (
@@ -274,6 +274,8 @@ export function MagazineViewer({
           >
             ›
           </ToolButton>
+          <span className="mx-0.5 h-4 w-px bg-white/15" aria-hidden />
+          <FullscreenButton fullscreen={fullscreen} onClick={() => void toggleFullscreen()} compact />
         </div>
       </div>
 
@@ -412,6 +414,32 @@ async function exitFullscreen() {
   if (doc.webkitExitFullscreen) {
     await doc.webkitExitFullscreen();
   }
+}
+
+function FullscreenButton({
+  fullscreen,
+  onClick,
+  compact = false,
+}: {
+  fullscreen: boolean;
+  onClick: () => void;
+  compact?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={fullscreen ? "Volledig scherm sluiten" : "Volledig scherm"}
+      className={
+        compact
+          ? "flex items-center gap-1.5 rounded-full px-3 py-2 text-paper/85"
+          : "flex items-center gap-1.5 rounded-full border border-white/15 bg-black/55 px-3 py-1.5 text-xs text-paper backdrop-blur"
+      }
+    >
+      <FullscreenIcon exit={fullscreen} />
+      <span className={compact ? "hidden sm:inline text-xs" : undefined}>{fullscreen ? "Sluiten" : "Volledig scherm"}</span>
+    </button>
+  );
 }
 
 function FullscreenIcon({ exit }: { exit: boolean }) {
