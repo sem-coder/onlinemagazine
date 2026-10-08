@@ -9,6 +9,7 @@ const FEATURES = [
   ["Embed", "Iframe voor WordPress, Shopify of je eigen site. Geen redirect nodig."],
   ["Klantomgeving", "Flipbooks, opslag, team, leads en statistieken op één dashboard."],
   ["Leadformulieren", "Vang e-mailadressen in het magazine en bekijk ze terug (Professional)."],
+  ["Afhaakpunten", "Zie tot welke pagina lezers komen en waar ze de brochure verlaten."],
   ["Advertentieclip", "Download een korte MP4 of GIF waarin de brochure automatisch doorbladert, klaar voor Meta-ads."],
   ["Boekenkast", "Publieke overzichtspagina van al je catalogs (Premium)."],
   ["Team", "Nodig extra gebruikers uit op hetzelfde account."],

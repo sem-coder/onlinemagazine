@@ -6,6 +6,7 @@ import { PageFlip } from "page-flip";
 import { useEffect, useRef, useState } from "react";
 import { Flipbook } from "@/components/Flipbook";
 import { SharePanel } from "@/components/SharePanel";
+import { useMagazineFunnel } from "@/components/useMagazineFunnel";
 import { leadFormFields, leadTriggerPage } from "@/lib/lead-form";
 import { fitPdfInStage, renderPdf, revokePages } from "@/lib/pdf";
 import type { Magazine } from "@/lib/types";
@@ -45,6 +46,8 @@ export function MagazineViewer({
     pageHeight: magazine.pageHeight || 842,
     single: true,
   });
+
+  useMagazineFunnel(magazine, page, openShare);
 
   useEffect(() => {
     if (pagesFromImages?.length) return;

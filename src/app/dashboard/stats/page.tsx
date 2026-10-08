@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { DashboardChrome } from "@/components/DashboardChrome";
 import { workspaceUser } from "@/lib/auth";
+import { DropoffInsights } from "@/components/DropoffInsights";
+import { getFunnelInsights } from "@/lib/funnel";
 import { listMagazinesForOwner } from "@/lib/magazines";
 import { canUse } from "@/lib/plans";
 
@@ -33,6 +35,9 @@ export default async function StatsPage() {
   }
 
   const magazines = await listMagazinesForOwner(space.owner.id);
+  const funnels = await Promise.all(
+    magazines.map((magazine) => getFunnelInsights(magazine.id, magazine.pageCount)),
+  );
   const days = lastDays(14);
   const totals = days.map((day) => magazines.reduce((sum, magazine) => sum + (magazine.viewsByDay[day] ?? 0), 0));
   const max = Math.max(1, ...totals);
@@ -51,14 +56,22 @@ export default async function StatsPage() {
         ))}
       </div>
       <ul className="mt-8 divide-y divide-black/5 rounded-2xl bg-white ring-1 ring-black/5">
-        {magazines.map((magazine) => (
-          <li key={magazine.id} className="flex items-center justify-between p-4 text-sm">
-            <Link href={`/dashboard/${magazine.id}`} className="font-medium">
-              {magazine.title}
-            </Link>
-            <span className="text-ink/55">{magazine.views} weergaven</span>
-          </li>
-        ))}
+        {magazines.map((magazine, index) => {
+          const funnel = funnels[index];
+          return (
+            <li key={magazine.id} className="p-4">
+              <div className="flex items-center justify-between text-sm">
+                <Link href={`/dashboard/${magazine.id}`} className="font-medium">
+                  {magazine.title}
+                </Link>
+                <span className="text-ink/55">{magazine.views} weergaven</span>
+              </div>
+              {funnel ? <DropoffInsights insights={funnel} compact /> : (
+                <p className="mt-2 text-sm text-ink/55">Nog geen afhaakdata.</p>
+              )}
+            </li>
+          );
+        })}
         {magazines.length === 0 ? <li className="p-4 text-sm text-ink/55">Nog geen data.</li> : null}
       </ul>
     </DashboardChrome>

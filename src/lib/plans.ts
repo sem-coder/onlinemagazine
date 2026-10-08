@@ -62,7 +62,7 @@ export const PLANS: Plan[] = [
     seats: 10,
     features: [
       "Alles in Standard",
-      "Lezersstatistieken",
+      "Lezersstatistieken + afhaakpunten",
       "Leadformulier in het magazine",
       "Eigen URL-slug",
       "10 gebruikers · 20 GB",

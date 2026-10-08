@@ -3,6 +3,8 @@ import { notFound, redirect } from "next/navigation";
 import { DashboardChrome } from "@/components/DashboardChrome";
 import { MagazineSettings } from "@/components/MagazineSettings";
 import { workspaceUser } from "@/lib/auth";
+import { DropoffInsights } from "@/components/DropoffInsights";
+import { getFunnelInsights } from "@/lib/funnel";
 import { listLeadsForMagazine } from "@/lib/leads";
 import { getMagazine } from "@/lib/magazines";
 import { canUse } from "@/lib/plans";
@@ -18,6 +20,7 @@ export default async function DashboardMagazinePage({ params }: Params) {
   const magazine = await getMagazine(id);
   if (!magazine || magazine.ownerId !== space.owner.id) notFound();
   const leads = canUse(space.owner.plan, "leads") ? await listLeadsForMagazine(magazine.id) : [];
+  const funnel = await getFunnelInsights(magazine.id, magazine.pageCount);
 
   return (
     <DashboardChrome user={space.user} owner={space.owner} isMember={space.isMember}>
@@ -35,6 +38,13 @@ export default async function DashboardMagazinePage({ params }: Params) {
           Open viewer
         </Link>
       </div>
+      <section className="mb-8 rounded-2xl bg-white p-5 ring-1 ring-black/5">
+        <h2 className="font-semibold">Waar lezers afhaken</h2>
+        <p className="mt-1 text-sm text-ink/55">
+          Tot welke pagina bezoekers bladeren, en waar de meeste sessies stoppen.
+        </p>
+        <DropoffInsights insights={funnel} />
+      </section>
       <MagazineSettings magazine={magazine} plan={space.owner.plan} />
       {canUse(space.owner.plan, "leads") ? (
         <section className="mt-8 rounded-2xl bg-white p-5 ring-1 ring-black/5">
