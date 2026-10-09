@@ -40,6 +40,7 @@ export function MagazineViewer({
   const [leadBusy, setLeadBusy] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [parentFullscreen, setParentFullscreen] = useState(false);
+  const cssFsRef = useRef(false);
   const leadLockRef = useRef(false);
   const [layout, setLayout] = useState({
     pageWidth: magazine.pageWidth || 595,
@@ -137,13 +138,20 @@ export function MagazineViewer({
     function onMessage(event: MessageEvent) {
       if (event.source !== window.parent) return;
       const data = event.data as { source?: string; type?: string } | null;
-      if (data?.source === "pdfmagazine" && data.type === "parent-fs-ready") {
+      if (data?.source !== "pdfmagazine") return;
+      if (data.type === "parent-fs-ready") setParentFullscreen(true);
+      if (data.type === "parent-fs-on") {
         setParentFullscreen(true);
+        setFullscreen(true);
       }
+      if (data.type === "parent-fs-off") setFullscreen(false);
     }
     window.addEventListener("message", onMessage);
+    if (mode === "embed" && window.parent !== window) {
+      window.parent.postMessage({ source: "pdfmagazine", type: "request-parent-fs" }, "*");
+    }
     return () => window.removeEventListener("message", onMessage);
-  }, []);
+  }, [mode]);
 
   useEffect(() => {
     function sync() {
@@ -187,26 +195,47 @@ export function MagazineViewer({
     }
   }
 
+  const leadCopy = leadFormFields(magazine);
+  const embed = mode === "embed";
+
+  function applyCssFs(on: boolean) {
+    const el = rootRef.current;
+    if (!el) return;
+    cssFsRef.current = on;
+    el.style.position = on ? "fixed" : "";
+    el.style.inset = on ? "0" : "";
+    el.style.width = on ? "100vw" : "";
+    el.style.height = on ? "100dvh" : "";
+    el.style.zIndex = on ? "99999" : "";
+    el.style.background = on ? "#1b1d1c" : "";
+    setFullscreen(on || isFullscreen() || isIframeWindowFullscreen());
+  }
+
   function toggleFullscreen() {
     const inIframe = embed && window.parent !== window;
-    if (isFullscreen() || isIframeWindowFullscreen()) {
-      if (inIframe) {
-        window.parent.postMessage({ source: "pdfmagazine", type: "toggle-fullscreen" }, "*");
-      }
-      if (isFullscreen()) void exitFullscreen();
-      return;
-    }
+    const active = isFullscreen() || isIframeWindowFullscreen() || cssFsRef.current;
     if (inIframe) {
       window.parent.postMessage({ source: "pdfmagazine", type: "toggle-fullscreen" }, "*");
     }
-    const node = document.documentElement as FsEl;
+    if (active) {
+      if (isFullscreen()) void exitFullscreen();
+      if (cssFsRef.current) applyCssFs(false);
+      return;
+    }
+    const node = (rootRef.current || document.documentElement) as FsEl;
     const req = node.requestFullscreen || node.webkitRequestFullscreen || node.webkitRequestFullScreen;
-    if (req) void Promise.resolve(req.call(node)).catch(() => undefined);
+    if (req) {
+      void Promise.resolve(req.call(node)).catch(() => {
+        if (!inIframe) applyCssFs(true);
+      });
+      window.setTimeout(() => {
+        if (!inIframe && !isFullscreen() && !cssFsRef.current) applyCssFs(true);
+      }, 400);
+      return;
+    }
+    if (!inIframe) applyCssFs(true);
   }
-
-  const leadCopy = leadFormFields(magazine);
-  const embed = mode === "embed";
-  const hideEmbedChrome = embed && parentFullscreen;
+  const hideEmbedChrome = embed && fullscreen;
   const totalPages = Math.max(progress.total, pages.length, magazine.pageCount);
   const loading = progress.current < totalPages || (pages.length === 0 && !error);
   const loadPercent = totalPages ? Math.min(100, Math.round((progress.current / totalPages) * 100)) : 0;
@@ -238,7 +267,7 @@ export function MagazineViewer({
         </header>
       ) : null}
 
-      {embed && !hideEmbedChrome ? (
+      {embed && !fullscreen && !parentFullscreen ? (
         <div className="absolute right-3 top-3 z-30">
           <FullscreenButton fullscreen={fullscreen} onClick={() => toggleFullscreen()} />
         </div>
