@@ -67,6 +67,7 @@ html.embed-frame body {
 }
 
 .magazine-page {
+  position: relative;
   background: #fff;
   overflow: hidden;
 }
@@ -78,6 +79,20 @@ html.embed-frame body {
   object-fit: fill;
   user-select: none;
   pointer-events: none;
+}
+
+.magazine-link {
+  position: absolute;
+  z-index: 4;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+.magazine-link:hover,
+.magazine-link:focus-visible {
+  outline: 2px solid rgba(31, 122, 77, 0.55);
+  outline-offset: 1px;
+  background: rgba(31, 122, 77, 0.08);
 }
 
 .hero-book {

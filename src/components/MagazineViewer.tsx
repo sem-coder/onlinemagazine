@@ -8,7 +8,7 @@ import { Flipbook } from "@/components/Flipbook";
 import { SharePanel } from "@/components/SharePanel";
 import { useMagazineFunnel } from "@/components/useMagazineFunnel";
 import { leadFormFields, leadTriggerPage } from "@/lib/lead-form";
-import { fitPdfInStage, renderPdf, revokePages } from "@/lib/pdf";
+import { fitPdfInStage, renderPdf, revokePages, type PageLink } from "@/lib/pdf";
 import type { Magazine } from "@/lib/types";
 
 type Props = {
@@ -30,6 +30,7 @@ export function MagazineViewer({
   const stageRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const [pages, setPages] = useState<string[]>(pagesFromImages ?? []);
+  const [links, setLinks] = useState<PageLink[][]>([]);
   const [page, setPage] = useState(0);
   const [progress, setProgress] = useState({ current: 0, total: magazine.pageCount });
   const [error, setError] = useState<string | null>(null);
@@ -81,6 +82,7 @@ export function MagazineViewer({
             urls = batch.pages;
             setLayout(batch.fitted);
             setPages(batch.pages);
+            setLinks(batch.links);
           },
         );
         if (cancelled) {
@@ -90,6 +92,7 @@ export function MagazineViewer({
         urls = rendered.pages;
         setLayout(rendered.fitted);
         setPages(rendered.pages);
+        setLinks(rendered.links);
         setProgress({ current: rendered.pages.length, total: rendered.pages.length });
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : "Laden mislukt.");
@@ -291,6 +294,7 @@ export function MagazineViewer({
           ) : pages.length ? (
             <Flipbook
               pages={pages}
+              links={links}
               pageWidth={layout.pageWidth}
               pageHeight={layout.pageHeight}
               single={layout.single}

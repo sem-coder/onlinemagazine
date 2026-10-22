@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic";
 
 const FEATURES = [
   ["Page-flip", "Realistische bladzijde, spread op desktop, één pagina op mobiel."],
+  ["Klikbare links", "URL's en interne verwijzingen uit je PDF blijven klikbaar in het flipbook."],
   ["Unieke link + QR", "Elke PDF krijgt /v/jouw-titel. Deel de URL of een QR-code."],
   ["Embed", "Iframe voor WordPress, Shopify of je eigen site. Geen redirect nodig."],
   ["Klantomgeving", "Flipbooks, opslag, team, leads en statistieken op één dashboard."],

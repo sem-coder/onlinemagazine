@@ -6,11 +6,21 @@ export type PdfProgress = {
   total: number;
 };
 
+export type PageLink = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  href?: string;
+  page?: number;
+};
+
 export type RenderedPdf = {
   pageCount: number;
   pageWidth: number;
   pageHeight: number;
   pages: string[];
+  links: PageLink[][];
   cover: Blob;
 };
 
@@ -210,6 +220,158 @@ function estimatedFlipCount(pdfPages: number, split: boolean) {
   return Math.max(1, pdfPages * 2 - 2);
 }
 
+type PendingLink = PageLink & { destPdfPage?: number };
+
+type AnnotLike = {
+  subtype?: string;
+  annotationType?: number;
+  url?: string;
+  unsafeUrl?: string;
+  dest?: unknown;
+  rect?: number[];
+};
+
+function normalizeHref(url: string) {
+  const trimmed = url.trim();
+  if (!trimmed) return undefined;
+  if (/^(javascript|vbscript|data|file):/i.test(trimmed)) return undefined;
+  if (/^(https?:\/\/|mailto:|tel:)/i.test(trimmed)) return trimmed;
+  if (/^www\./i.test(trimmed)) return `https://${trimmed}`;
+  return undefined;
+}
+
+function rectToViewportBox(
+  viewport: { width: number; height: number; convertToViewportRectangle?: (rect: number[]) => number[] },
+  rect: number[],
+) {
+  const converted =
+    typeof viewport.convertToViewportRectangle === "function"
+      ? viewport.convertToViewportRectangle(rect)
+      : [rect[0], viewport.height - rect[3], rect[2], viewport.height - rect[1]];
+  return {
+    x1: Math.min(converted[0], converted[2]),
+    y1: Math.min(converted[1], converted[3]),
+    x2: Math.max(converted[0], converted[2]),
+    y2: Math.max(converted[1], converted[3]),
+  };
+}
+
+function boxToLink(
+  box: { x1: number; y1: number; x2: number; y2: number },
+  pageW: number,
+  pageH: number,
+  offsetX: number,
+  sliceW: number,
+  href?: string,
+  destPdfPage?: number,
+): PendingLink | null {
+  const left = Math.max(box.x1, offsetX);
+  const right = Math.min(box.x2, offsetX + sliceW);
+  const top = Math.max(box.y1, 0);
+  const bottom = Math.min(box.y2, pageH);
+  if (right - left < 2 || bottom - top < 2) return null;
+  return {
+    left: (left - offsetX) / sliceW,
+    top: top / pageH,
+    width: (right - left) / sliceW,
+    height: (bottom - top) / pageH,
+    href,
+    destPdfPage,
+  };
+}
+
+async function destToPdfPage(
+  pdf: PDFDocumentProxy,
+  dest: unknown,
+  cache: Map<string, number | null>,
+) {
+  let explicit = dest;
+  if (typeof dest === "string") {
+    if (cache.has(dest)) return cache.get(dest) ?? null;
+    try {
+      explicit = await pdf.getDestination(dest);
+    } catch {
+      cache.set(dest, null);
+      return null;
+    }
+  }
+  if (!Array.isArray(explicit) || explicit[0] == null) {
+    if (typeof dest === "string") cache.set(dest, null);
+    return null;
+  }
+  try {
+    const index = await pdf.getPageIndex(explicit[0]);
+    if (typeof dest === "string") cache.set(dest, index);
+    return index;
+  } catch {
+    if (typeof dest === "string") cache.set(dest, null);
+    return null;
+  }
+}
+
+async function extractPageLinks(
+  pdf: PDFDocumentProxy,
+  page: PDFPageProxy,
+  cache: Map<string, number | null>,
+) {
+  const viewport = page.getViewport({ scale: 1 });
+  const annotations = (await page.getAnnotations()) as AnnotLike[];
+  const links: PendingLink[] = [];
+  for (const annot of annotations) {
+    const subtype = String(annot.subtype || "");
+    if (subtype !== "Link" && annot.annotationType !== 2) continue;
+    if (!Array.isArray(annot.rect) || annot.rect.length < 4) continue;
+    const href = normalizeHref(String(annot.url || annot.unsafeUrl || ""));
+    let destPdfPage: number | undefined;
+    if (!href && annot.dest != null) {
+      const index = await destToPdfPage(pdf, annot.dest, cache);
+      if (index != null) destPdfPage = index;
+    }
+    if (!href && destPdfPage == null) continue;
+    const box = rectToViewportBox(viewport, annot.rect);
+    const mapped = boxToLink(box, viewport.width, viewport.height, 0, viewport.width, href, destPdfPage);
+    if (mapped) links.push(mapped);
+  }
+  return { links, viewport };
+}
+
+function splitLinksForSpread(links: PendingLink[], pageW: number, pageH: number) {
+  const mid = pageW / 2;
+  const left: PendingLink[] = [];
+  const right: PendingLink[] = [];
+  for (const link of links) {
+    const box = {
+      x1: link.left * pageW,
+      y1: link.top * pageH,
+      x2: (link.left + link.width) * pageW,
+      y2: (link.top + link.height) * pageH,
+    };
+    const leftLink = boxToLink(box, pageW, pageH, 0, mid, link.href, link.destPdfPage);
+    const rightLink = boxToLink(box, pageW, pageH, mid, pageW - mid, link.href, link.destPdfPage);
+    if (leftLink) left.push(leftLink);
+    if (rightLink) right.push(rightLink);
+  }
+  return [left, right] as const;
+}
+
+function resolveDests(linkPages: PendingLink[][], pdfToFlip: number[]) {
+  for (const page of linkPages) {
+    for (const link of page) {
+      if (link.page == null && link.destPdfPage != null && pdfToFlip[link.destPdfPage] != null) {
+        link.page = pdfToFlip[link.destPdfPage];
+      }
+    }
+  }
+}
+
+function publicLinks(linkPages: PendingLink[][]): PageLink[][] {
+  return linkPages.map((page) =>
+    page
+      .filter((link) => Boolean(link.href) || link.page != null)
+      .map(({ destPdfPage: _dest, ...link }) => link),
+  );
+}
+
 async function renderPdfPage(
   page: PDFPageProxy,
   size: PageSize,
@@ -227,7 +389,7 @@ export async function renderPdf(
   file: File | ArrayBuffer,
   fit: (pageW: number, pageH: number, portraitBook: boolean) => FittedPage,
   onProgress?: (progress: PdfProgress) => void,
-  onBatch?: (payload: { pages: string[]; fitted: FittedPage; done: boolean }) => void,
+  onBatch?: (payload: { pages: string[]; links: PageLink[][]; fitted: FittedPage; done: boolean }) => void,
 ): Promise<RenderedPdf & { fitted: FittedPage }> {
   const pdf = await openPdf(file);
 
@@ -247,27 +409,51 @@ export async function renderPdf(
   const fitted = fit(plan.leaf.width, plan.leaf.height, plan.portraitBook);
 
   const pages: string[] = [];
+  const pendingLinks: PendingLink[][] = [];
+  const pdfToFlip: number[] = [];
+  const destCache = new Map<string, number | null>();
   let cover: Blob | null = null;
   let done = 0;
   let firstBatch = false;
+
+  const emitBatch = (complete: boolean) => {
+    resolveDests(pendingLinks, pdfToFlip);
+    onBatch?.({ pages: [...pages], links: publicLinks(pendingLinks), fitted, done: complete });
+  };
 
   for (let index = 1; index <= pdf.numPages; index += 1) {
     const page = await pdf.getPage(index);
     const viewport = page.getViewport({ scale: 1 });
     const size = { width: viewport.width, height: viewport.height };
+    pdfToFlip[index - 1] = pages.length;
+    let extracted: { links: PendingLink[]; viewport: { width: number; height: number } } = {
+      links: [],
+      viewport,
+    };
+    try {
+      extracted = await extractPageLinks(pdf, page, destCache);
+    } catch {
+      extracted = { links: [], viewport };
+    }
     const blobs = await renderPdfPage(page, size, plan, fitted);
-    for (const blob of blobs) {
+    const spread = plan.split && isSpreadPage(size, plan.leaf);
+    const mapped = spread
+      ? splitLinksForSpread(extracted.links, extracted.viewport.width, extracted.viewport.height)
+      : [extracted.links];
+    for (let i = 0; i < blobs.length; i += 1) {
+      const blob = blobs[i];
       if (!cover) cover = blob;
       pages.push(URL.createObjectURL(blob));
+      pendingLinks.push(mapped[i] ?? []);
       done += 1;
       onProgress?.({ current: done, total: Math.max(estimated, done) });
     }
 
     if (!firstBatch && (pages.length >= PRELOAD_FLIP_PAGES || index === pdf.numPages)) {
       firstBatch = true;
-      onBatch?.({ pages: [...pages], fitted, done: index === pdf.numPages });
+      emitBatch(index === pdf.numPages);
     } else if (firstBatch && (index === pdf.numPages || pages.length % 4 === 0)) {
-      onBatch?.({ pages: [...pages], fitted, done: index === pdf.numPages });
+      emitBatch(index === pdf.numPages);
     }
 
     if (firstBatch && index < pdf.numPages) {
@@ -278,13 +464,16 @@ export async function renderPdf(
   if (!cover) throw new Error("PDF heeft geen pagina's");
 
   onProgress?.({ current: pages.length, total: pages.length });
-  onBatch?.({ pages: [...pages], fitted, done: true });
+  resolveDests(pendingLinks, pdfToFlip);
+  const links = publicLinks(pendingLinks);
+  onBatch?.({ pages: [...pages], links, fitted, done: true });
 
   return {
     pageCount: pages.length,
     pageWidth: plan.leaf.width,
     pageHeight: plan.leaf.height,
     pages,
+    links,
     cover,
     fitted,
   };
