@@ -81,9 +81,22 @@ html.embed-frame body {
   pointer-events: none;
 }
 
+.magazine-link-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.magazine-link-page {
+  position: absolute;
+  pointer-events: none;
+}
+
 .magazine-link {
   position: absolute;
-  z-index: 4;
+  z-index: 1;
+  pointer-events: auto;
   cursor: pointer;
   border-radius: 2px;
 }

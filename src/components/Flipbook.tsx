@@ -14,6 +14,14 @@ type Props = {
   onReady?: (book: PageFlip) => void;
 };
 
+type PageSlot = {
+  index: number;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
+
 function goToFlipPage(book: PageFlip, index: number) {
   if (index < 0 || index >= book.getPageCount()) return;
   if (book.getCurrentPageIndex() === index) return;
@@ -52,10 +60,11 @@ function attachLinks(page: HTMLElement, links: PageLink[], goToPage: (index: num
   }
 }
 
-function pageElements(pages: string[], links: PageLink[][], goToPage: (index: number) => void) {
+function pageElements(pages: string[]) {
   return pages.map((src, index) => {
     const page = document.createElement("div");
     page.className = "magazine-page";
+    page.dataset.page = String(index);
     page.dataset.density = index === 0 || index === pages.length - 1 ? "hard" : "soft";
     const image = document.createElement("img");
     image.src = src;
@@ -63,9 +72,66 @@ function pageElements(pages: string[], links: PageLink[][], goToPage: (index: nu
     image.draggable = false;
     image.decoding = "async";
     page.appendChild(image);
-    attachLinks(page, links[index] ?? [], goToPage);
     return page;
   });
+}
+
+function createLinkLayer(
+  root: HTMLElement,
+  book: PageFlip,
+  linksRef: { current: PageLink[][] },
+) {
+  const layer = document.createElement("div");
+  layer.className = "magazine-link-layer";
+  let slots: PageSlot[] = [];
+
+  const measure = () => {
+    const rootRect = root.getBoundingClientRect();
+    const next: PageSlot[] = [];
+    for (const el of root.querySelectorAll<HTMLElement>(".magazine-page")) {
+      if (el.style.display === "none" || !el.classList.contains("--simple")) continue;
+      const index = Number(el.dataset.page);
+      if (!Number.isFinite(index)) continue;
+      const rect = el.getBoundingClientRect();
+      if (rect.width < 2 || rect.height < 2) continue;
+      next.push({
+        index,
+        left: rect.left - rootRect.left,
+        top: rect.top - rootRect.top,
+        width: rect.width,
+        height: rect.height,
+      });
+    }
+    if (next.length) slots = next;
+  };
+
+  const draw = (hide: boolean) => {
+    layer.replaceChildren();
+    if (hide) return;
+    for (const slot of slots) {
+      const pageLinks = linksRef.current[slot.index] ?? [];
+      if (!pageLinks.length) continue;
+      const wrap = document.createElement("div");
+      wrap.className = "magazine-link-page";
+      wrap.style.left = `${slot.left}px`;
+      wrap.style.top = `${slot.top}px`;
+      wrap.style.width = `${slot.width}px`;
+      wrap.style.height = `${slot.height}px`;
+      attachLinks(wrap, pageLinks, (index) => goToFlipPage(book, index));
+      layer.appendChild(wrap);
+    }
+  };
+
+  const sync = (mode: "show" | "hide" | "keep" = "show") => {
+    if (mode === "hide") {
+      draw(true);
+      return;
+    }
+    if (mode === "show") measure();
+    draw(false);
+  };
+
+  return { layer, sync };
 }
 
 export function Flipbook({
@@ -81,8 +147,11 @@ export function Flipbook({
   const bookRef = useRef<PageFlip | null>(null);
   const onFlipRef = useRef(onFlip);
   const onReadyRef = useRef(onReady);
+  const linksRef = useRef(links);
+  const syncRef = useRef<(mode?: "show" | "hide" | "keep") => void>(() => {});
   const loadedCount = useRef(0);
   const lastLinks = useRef<PageLink[][]>(links);
+  linksRef.current = links;
 
   useEffect(() => {
     onFlipRef.current = onFlip;
@@ -95,7 +164,6 @@ export function Flipbook({
 
     const host = document.createElement("div");
     host.className = "flipbook-host";
-    root.replaceChildren(host);
 
     const book = new PageFlip(host, {
       width: pageWidth,
@@ -114,24 +182,47 @@ export function Flipbook({
       startZIndex: 2,
     });
 
-    const goToPage = (index: number) => goToFlipPage(book, index);
+    const { layer, sync } = createLinkLayer(root, book, linksRef);
+    syncRef.current = sync;
+    root.replaceChildren(host, layer);
 
     book.on("flip", (event) => {
       onFlipRef.current?.(Number(event.data));
+      requestAnimationFrame(() => sync("show"));
+    });
+    book.on("changeState", (event) => {
+      const state = String(event.data);
+      if (state === "flipping" || state === "user_fold") sync("hide");
+      else if (state === "read") requestAnimationFrame(() => sync("show"));
+    });
+    book.on("changeOrientation", () => {
+      requestAnimationFrame(() => sync("show"));
     });
     book.on("init", () => {
       bookRef.current = book;
       onReadyRef.current?.(book);
+      requestAnimationFrame(() => sync("show"));
     });
-    const initial = pageElements(pages, links, goToPage);
+    book.on("update", () => {
+      requestAnimationFrame(() => sync("show"));
+    });
+
+    const initial = pageElements(pages);
     loadedCount.current = pages.length;
     lastLinks.current = links;
     book.loadFromHTML(initial);
     bookRef.current = book;
 
+    const observer = new ResizeObserver(() => {
+      if (book.getState() === "read") sync("show");
+    });
+    observer.observe(root);
+
     return () => {
+      observer.disconnect();
       bookRef.current = null;
       loadedCount.current = 0;
+      syncRef.current = () => {};
       book.destroy();
     };
     // Recreate only when the book geometry changes, not when extra pages stream in.
@@ -144,7 +235,8 @@ export function Flipbook({
     if (pages.length === loadedCount.current && links === lastLinks.current) return;
     loadedCount.current = pages.length;
     lastLinks.current = links;
-    book.updateFromHtml(pageElements(pages, links, (index) => goToFlipPage(book, index)));
+    book.updateFromHtml(pageElements(pages));
+    requestAnimationFrame(() => syncRef.current("show"));
   }, [pages, links]);
 
   const bookW = single ? pageWidth : pageWidth * 2;

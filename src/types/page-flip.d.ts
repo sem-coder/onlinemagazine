@@ -41,6 +41,7 @@ declare module "page-flip" {
     getCurrentPageIndex(): number;
     getPage(pageIndex: number): { setDensity(density: "soft" | "hard"): void };
     getOrientation(): "portrait" | "landscape";
+    getState(): "read" | "user_fold" | "fold_corner" | "flipping";
     on(
       event: "flip" | "changeState" | "changeOrientation" | "init" | "update",
       callback: (e: { data: unknown }) => void,
