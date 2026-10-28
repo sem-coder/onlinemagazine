@@ -174,7 +174,7 @@ export function MagazineViewer({
       }
     }
     window.addEventListener("message", onMessage);
-    if (mode === "embed" && window.parent !== window) {
+    if (window.parent !== window) {
       window.parent.postMessage({ source: "pdfmagazine", type: "request-parent-fs" }, "*");
     }
     return () => window.removeEventListener("message", onMessage);
@@ -223,7 +223,8 @@ export function MagazineViewer({
   }
 
   const leadCopy = leadFormFields(magazine);
-  const embed = mode === "embed";
+  const framed = typeof window !== "undefined" && window.parent !== window;
+  const embed = mode === "embed" || framed;
 
   function applyCssFs(on: boolean) {
     const el = rootRef.current;
@@ -299,13 +300,6 @@ export function MagazineViewer({
           </div>
           <div className="pointer-events-auto flex items-center gap-2">
             <FullscreenButton fullscreen={fullscreen} onClick={() => void toggleFullscreen()} />
-            <button
-              type="button"
-              onClick={() => setShare(true)}
-              className="rounded-full bg-green px-3 py-1.5 text-sm text-white"
-            >
-              Deel / embed
-            </button>
           </div>
         </header>
       ) : null}

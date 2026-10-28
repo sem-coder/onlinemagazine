@@ -3,7 +3,7 @@
   window.__pdfmEmbed = 1;
 
   var WRAP =
-    "position:relative;width:100%;height:0;padding-top:max(640px,62.5%);overflow:hidden;background:#1b1d1c;";
+    "position:relative;width:100%;height:min(85dvh,880px);min-height:min(560px,78dvh);overflow:hidden;background:#1b1d1c;";
   var WRAP_FS =
     "position:fixed !important;inset:0 !important;left:0 !important;top:0 !important;right:0 !important;bottom:0 !important;width:100vw !important;height:100vh !important;height:100dvh !important;max-width:none !important;max-height:none !important;padding:0 !important;margin:0 !important;border:0 !important;transform:none !important;filter:none !important;z-index:2147483646 !important;overflow:hidden !important;background:#1b1d1c !important;";
   var FRAME =
@@ -73,6 +73,7 @@
     if (!wrap) return;
     var btn = wrap.querySelector("[data-pdfm-fs]");
     if (on) {
+      if (!wrap.getAttribute("data-pdfm-rest")) wrap.setAttribute("data-pdfm-rest", wrap.getAttribute("style") || WRAP);
       lift(wrap);
       wrap.setAttribute("data-pdfm-x", "1");
       wrap.style.cssText = WRAP_FS;
@@ -81,7 +82,7 @@
       document.body.style.overflow = "hidden";
     } else {
       wrap.removeAttribute("data-pdfm-x");
-      wrap.style.cssText = WRAP;
+      wrap.style.cssText = wrap.getAttribute("data-pdfm-rest") || WRAP;
       iframe.style.cssText = FRAME;
       restore(wrap);
       document.documentElement.style.overflow = "";
@@ -231,7 +232,7 @@
 
   document.querySelectorAll("[data-pdfmagazine]").forEach(mount);
   document.querySelectorAll("iframe").forEach(function (iframe) {
-    if (/\/embed\//.test(iframe.src || "")) addButton(iframe);
+    if (/\/(embed|v)\//.test(iframe.src || "")) addButton(iframe);
   });
 
   function findIframe(event) {
@@ -248,7 +249,9 @@
     var iframe = findIframe(event);
     if (!iframe) return;
     if (data.type === "resize" && data.height && iframe.parentNode && !isFake(iframe.parentNode) && nativeFs() !== iframe) {
-      iframe.parentNode.style.paddingTop = Math.max(640, Number(data.height)) + "px";
+      var wrap = iframe.parentNode;
+      var compact = wrap.style && (wrap.style.height === "0px" || wrap.style.height === "0");
+      if (compact) wrap.style.paddingTop = Math.max(560, Number(data.height)) + "px";
     }
     if (data.type === "toggle-fullscreen") toggle(iframe, false);
     if (data.type === "request-parent-fs") ready(iframe);
