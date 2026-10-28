@@ -42,6 +42,8 @@ export function MagazineViewer({
   const [fullscreen, setFullscreen] = useState(false);
   const [parentFullscreen, setParentFullscreen] = useState(false);
   const cssFsRef = useRef(false);
+  const parentWaitRef = useRef(0);
+  const parentFsOnRef = useRef(false);
   const leadLockRef = useRef(false);
   const [layout, setLayout] = useState({
     pageWidth: magazine.pageWidth || 595,
@@ -120,7 +122,7 @@ export function MagazineViewer({
     const observer = new ResizeObserver(fit);
     observer.observe(stage);
     return () => observer.disconnect();
-  }, [pages.length, magazine.pageWidth, magazine.pageHeight]);
+  }, [pages.length, magazine.pageWidth, magazine.pageHeight, fullscreen]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -144,10 +146,32 @@ export function MagazineViewer({
       if (data?.source !== "pdfmagazine") return;
       if (data.type === "parent-fs-ready") setParentFullscreen(true);
       if (data.type === "parent-fs-on") {
+        if (parentWaitRef.current) {
+          window.clearTimeout(parentWaitRef.current);
+          parentWaitRef.current = 0;
+        }
+        const el = rootRef.current;
+        if (cssFsRef.current && el) {
+          cssFsRef.current = false;
+          el.style.position = "";
+          el.style.inset = "";
+          el.style.width = "";
+          el.style.height = "";
+          el.style.zIndex = "";
+          el.style.background = "";
+        }
+        parentFsOnRef.current = true;
         setParentFullscreen(true);
         setFullscreen(true);
       }
-      if (data.type === "parent-fs-off") setFullscreen(false);
+      if (data.type === "parent-fs-off") {
+        if (parentWaitRef.current) {
+          window.clearTimeout(parentWaitRef.current);
+          parentWaitRef.current = 0;
+        }
+        parentFsOnRef.current = false;
+        setFullscreen(false);
+      }
     }
     window.addEventListener("message", onMessage);
     if (mode === "embed" && window.parent !== window) {
@@ -158,7 +182,7 @@ export function MagazineViewer({
 
   useEffect(() => {
     function sync() {
-      setFullscreen(isFullscreen() || isIframeWindowFullscreen());
+      setFullscreen(isFullscreen() || isIframeWindowFullscreen() || cssFsRef.current || parentFsOnRef.current);
     }
     document.addEventListener("fullscreenchange", sync);
     document.addEventListener("webkitfullscreenchange", sync);
@@ -216,27 +240,43 @@ export function MagazineViewer({
 
   function toggleFullscreen() {
     const inIframe = embed && window.parent !== window;
-    const active = isFullscreen() || isIframeWindowFullscreen() || cssFsRef.current;
+    const parentHandles = inIframe && parentFullscreen;
+    const active = isFullscreen() || isIframeWindowFullscreen() || cssFsRef.current || (parentHandles && fullscreen);
+
+    if (parentHandles) {
+      window.parent.postMessage({ source: "pdfmagazine", type: "toggle-fullscreen" }, "*");
+      return;
+    }
+
     if (inIframe) {
       window.parent.postMessage({ source: "pdfmagazine", type: "toggle-fullscreen" }, "*");
+      if (!active) {
+        if (parentWaitRef.current) window.clearTimeout(parentWaitRef.current);
+        parentWaitRef.current = window.setTimeout(() => {
+          parentWaitRef.current = 0;
+          if (!isFullscreen() && !cssFsRef.current && !isIframeWindowFullscreen()) applyCssFs(true);
+        }, 200);
+      }
     }
+
     if (active) {
       if (isFullscreen()) void exitFullscreen();
       if (cssFsRef.current) applyCssFs(false);
       return;
     }
+
     const node = (rootRef.current || document.documentElement) as FsEl;
     const req = node.requestFullscreen || node.webkitRequestFullscreen || node.webkitRequestFullScreen;
     if (req) {
       void Promise.resolve(req.call(node)).catch(() => {
-        if (!inIframe) applyCssFs(true);
+        if (!parentHandles) applyCssFs(true);
       });
       window.setTimeout(() => {
-        if (!inIframe && !isFullscreen() && !cssFsRef.current) applyCssFs(true);
+        if (!isFullscreen() && !cssFsRef.current && !isIframeWindowFullscreen() && !parentHandles) applyCssFs(true);
       }, 400);
       return;
     }
-    if (!inIframe) applyCssFs(true);
+    if (!parentHandles) applyCssFs(true);
   }
   const hideEmbedChrome = embed && fullscreen;
   const totalPages = Math.max(progress.total, pages.length, magazine.pageCount);

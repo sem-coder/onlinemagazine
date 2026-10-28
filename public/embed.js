@@ -5,18 +5,41 @@
   var WRAP =
     "position:relative;width:100%;height:0;padding-top:max(640px,62.5%);overflow:hidden;background:#1b1d1c;";
   var WRAP_FS =
-    "position:fixed;left:0;top:0;right:0;bottom:0;width:100vw;height:100vh;height:100dvh;padding:0;margin:0;z-index:2147483646;overflow:hidden;background:#1b1d1c;";
+    "position:fixed !important;inset:0 !important;left:0 !important;top:0 !important;right:0 !important;bottom:0 !important;width:100vw !important;height:100vh !important;height:100dvh !important;max-width:none !important;max-height:none !important;padding:0 !important;margin:0 !important;border:0 !important;transform:none !important;filter:none !important;z-index:2147483646 !important;overflow:hidden !important;background:#1b1d1c !important;";
   var FRAME =
     "position:absolute;top:0;left:0;width:100% !important;height:100% !important;max-height:none !important;border:0;background:#1b1d1c;";
   var BTN =
     "position:absolute;top:12px;right:12px;z-index:2147483647;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.55);color:#f4f6f5;border-radius:999px;padding:6px 12px;font:12px/1.2 system-ui,sans-serif;cursor:pointer;";
 
+  var homes = typeof WeakMap === "function" ? new WeakMap() : null;
+
   function nativeFs() {
     return document.fullscreenElement || document.webkitFullscreenElement || null;
   }
 
+  function isOurWrap(node) {
+    return !!(node && node.getAttribute && node.getAttribute("data-pdfm-wrap") === "1");
+  }
+
+  function ensureWrap(iframe) {
+    var parent = iframe.parentNode;
+    if (!parent) return null;
+    if (isOurWrap(parent)) return parent;
+    if (parent.querySelector && parent.querySelector("[data-pdfm-fs]") && parent.children.length <= 3) {
+      parent.setAttribute("data-pdfm-wrap", "1");
+      return parent;
+    }
+    var box = document.createElement("div");
+    box.setAttribute("data-pdfm-wrap", "1");
+    box.style.cssText = WRAP;
+    parent.insertBefore(box, iframe);
+    box.appendChild(iframe);
+    iframe.style.cssText = FRAME;
+    return box;
+  }
+
   function wrapOf(iframe) {
-    return iframe.parentNode;
+    return ensureWrap(iframe);
   }
 
   function isFake(wrap) {
@@ -24,8 +47,25 @@
   }
 
   function isOn(iframe) {
-    var wrap = wrapOf(iframe);
-    return nativeFs() === iframe || isFake(wrap);
+    var wrap = iframe.parentNode;
+    return nativeFs() === iframe || nativeFs() === wrap || isFake(wrap);
+  }
+
+  function lift(wrap) {
+    if (!wrap || wrap.parentNode === document.body) {
+      if (homes) homes.set(wrap, homes.get(wrap) || { parent: wrap.parentNode, next: wrap.nextSibling });
+      return;
+    }
+    if (homes) homes.set(wrap, { parent: wrap.parentNode, next: wrap.nextSibling });
+    document.body.appendChild(wrap);
+  }
+
+  function restore(wrap) {
+    var home = homes && homes.get(wrap);
+    if (!home || !home.parent) return;
+    if (home.next && home.next.parentNode === home.parent) home.parent.insertBefore(wrap, home.next);
+    else home.parent.appendChild(wrap);
+    homes.delete(wrap);
   }
 
   function applyFake(iframe, on) {
@@ -33,6 +73,7 @@
     if (!wrap) return;
     var btn = wrap.querySelector("[data-pdfm-fs]");
     if (on) {
+      lift(wrap);
       wrap.setAttribute("data-pdfm-x", "1");
       wrap.style.cssText = WRAP_FS;
       iframe.style.cssText = FRAME;
@@ -42,6 +83,7 @@
       wrap.removeAttribute("data-pdfm-x");
       wrap.style.cssText = WRAP;
       iframe.style.cssText = FRAME;
+      restore(wrap);
       document.documentElement.style.overflow = "";
       document.body.style.overflow = "";
     }
@@ -74,12 +116,15 @@
   }
 
   function enterNative(iframe) {
-    var req = iframe.requestFullscreen || iframe.webkitRequestFullscreen || iframe.webkitRequestFullScreen;
+    var wrap = wrapOf(iframe);
+    var req =
+      (iframe.requestFullscreen || iframe.webkitRequestFullscreen || iframe.webkitRequestFullScreen) ||
+      (wrap && (wrap.requestFullscreen || wrap.webkitRequestFullscreen || wrap.webkitRequestFullScreen));
     if (!req) {
       applyFake(iframe, true);
       return;
     }
-    var result = req.call(iframe);
+    var result = req.call(iframe.requestFullscreen ? iframe : wrap);
     if (result && typeof result.then === "function") {
       result.catch(function () {
         applyFake(iframe, true);
@@ -87,7 +132,7 @@
     }
     window.setTimeout(function () {
       if (!isOn(iframe)) applyFake(iframe, true);
-    }, 400);
+    }, 350);
   }
 
   function toggle(iframe, fromClick) {
@@ -114,13 +159,16 @@
     iframe.setAttribute("webkitallowfullscreen", "true");
     iframe.setAttribute("mozallowfullscreen", "true");
 
-    if (btn && !btn.getAttribute("data-pdfm-btn") && !btn.getAttribute("onclick")) {
-      btn.setAttribute("data-pdfm-btn", "1");
-      btn.addEventListener("click", function (event) {
-        event.preventDefault();
-        event.stopPropagation();
-        toggle(iframe, true);
-      });
+    if (btn) {
+      btn.removeAttribute("onclick");
+      if (!btn.getAttribute("data-pdfm-btn")) {
+        btn.setAttribute("data-pdfm-btn", "1");
+        btn.addEventListener("click", function (event) {
+          event.preventDefault();
+          event.stopPropagation();
+          toggle(iframe, true);
+        });
+      }
     }
 
     iframe.addEventListener("load", function () {
@@ -137,22 +185,23 @@
       ping(iframe, isOn(iframe));
     });
     document.addEventListener("keydown", function (event) {
-      if (event.key === "Escape" && isFake(wrapOf(iframe))) applyFake(iframe, false);
+      if (event.key === "Escape" && isFake(iframe.parentNode)) applyFake(iframe, false);
     });
   }
 
   function addButton(iframe) {
-    if (iframe.getAttribute("data-pdfm-enhanced")) return;
-    var wrap = iframe.parentNode;
+    var wrap = ensureWrap(iframe);
     if (!wrap) return;
+    if (iframe.getAttribute("data-pdfm-enhanced") === "1") {
+      bind(iframe, wrap.querySelector("[data-pdfm-fs]"));
+      return;
+    }
     iframe.setAttribute("data-pdfm-enhanced", "1");
     var existing = wrap.querySelector("[data-pdfm-fs]");
     if (existing) {
       bind(iframe, existing);
       return;
     }
-    var pos = window.getComputedStyle(wrap).position;
-    if (pos === "static") wrap.style.position = "relative";
     var btn = document.createElement("button");
     btn.type = "button";
     btn.setAttribute("data-pdfm-fs", "1");
@@ -170,6 +219,7 @@
     var id = target.getAttribute("data-id");
     if (!id || target.getAttribute("data-ready")) return;
     target.setAttribute("data-ready", "1");
+    target.setAttribute("data-pdfm-wrap", "1");
     target.style.cssText = WRAP;
     var iframe = document.createElement("iframe");
     iframe.src = origin + "/embed/" + encodeURIComponent(id);
