@@ -111,7 +111,7 @@ export function Flipbook({
       mobileScrollSupport: true,
       showPageCorners: false,
       clickEventForward: true,
-      disableFlipByClick: true,
+      disableFlipByClick: false,
       startZIndex: 2,
     });
 
