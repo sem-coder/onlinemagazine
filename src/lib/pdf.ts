@@ -265,10 +265,12 @@ function boxToLink(
   href?: string,
   destPdfPage?: number,
 ): PendingLink | null {
-  const left = Math.max(box.x1, offsetX);
-  const right = Math.min(box.x2, offsetX + sliceW);
-  const top = Math.max(box.y1, 0);
-  const bottom = Math.min(box.y2, pageH);
+  const padX = Math.max(4, sliceW * 0.012);
+  const padY = Math.max(4, pageH * 0.012);
+  const left = Math.max(box.x1 - padX, offsetX);
+  const right = Math.min(box.x2 + padX, offsetX + sliceW);
+  const top = Math.max(box.y1 - padY, 0);
+  const bottom = Math.min(box.y2 + padY, pageH);
   if (right - left < 2 || bottom - top < 2) return null;
   return {
     left: (left - offsetX) / sliceW,
