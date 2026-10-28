@@ -3,7 +3,7 @@
   window.__pdfmEmbed = 1;
 
   var WRAP =
-    "position:relative;width:100%;height:min(85dvh,880px);min-height:min(560px,78dvh);overflow:hidden;background:#1b1d1c;";
+    "position:relative;width:100%;height:0;padding-top:75%;min-height:560px;overflow:hidden;background:#1b1d1c;";
   var WRAP_FS =
     "position:fixed !important;inset:0 !important;left:0 !important;top:0 !important;right:0 !important;bottom:0 !important;width:100vw !important;height:100vh !important;height:100dvh !important;max-width:none !important;max-height:none !important;padding:0 !important;margin:0 !important;border:0 !important;transform:none !important;filter:none !important;z-index:2147483646 !important;overflow:hidden !important;background:#1b1d1c !important;";
   var FRAME =
@@ -232,7 +232,7 @@
 
   document.querySelectorAll("[data-pdfmagazine]").forEach(mount);
   document.querySelectorAll("iframe").forEach(function (iframe) {
-    if (/\/(embed|v)\//.test(iframe.src || "")) addButton(iframe);
+    if (/\/embed\//.test(iframe.src || "")) addButton(iframe);
   });
 
   function findIframe(event) {

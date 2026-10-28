@@ -12,9 +12,9 @@ export function shareUrl(magazine: Magazine, origin: string) {
 function wrapStyle(magazine: Magazine) {
   const portrait = magazine.pageWidth < magazine.pageHeight;
   if (portrait) {
-    return "position:relative;width:100%;height:min(88dvh,920px);min-height:min(620px,80dvh);overflow:hidden;background:#1b1d1c;";
+    return "position:relative;width:100%;height:0;padding-top:130%;min-height:620px;overflow:hidden;background:#1b1d1c;";
   }
-  return "position:relative;width:100%;height:min(78dvh,720px);min-height:min(420px,70dvh);overflow:hidden;background:#1b1d1c;";
+  return "position:relative;width:100%;height:0;padding-top:62.5%;min-height:420px;overflow:hidden;background:#1b1d1c;";
 }
 
 export function embedCode(magazine: Magazine, origin: string) {
@@ -86,8 +86,8 @@ export function SharePanel({
           <ul className="mt-2 list-disc space-y-1 pl-5">
             <li>Breedte: 100% van je contentkolom, niet in een smalle card.</li>
             <li>
-              Hoogte: {portrait ? "minimaal 620px, bij voorkeur ± 80–88% van het scherm" : "minimaal 420px, bij voorkeur ± 70–78% van het scherm"}{" "}
-              ({portrait ? "staand" : "liggend"} magazine). De code hieronder doet dat automatisch.
+              Hoogte: {portrait ? "ongeveer 1,3× de breedte, minimaal 620px" : "ongeveer 16:10, minimaal 420px"} (
+              {portrait ? "staand" : "liggend"} magazine). De code hieronder doet dat automatisch.
             </li>
             <li>Op mobiel: over de volle paginabreedte, niet naast een menu in twee kolommen.</li>
             <li>Onder ± 400px hoog wordt de brochure onleesbaar.</li>
